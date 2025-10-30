@@ -1,7 +1,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,6 +8,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    // ✅ Add this to bypass optimization for external domains
+    unoptimized: false, // Keep optimization enabled for other domains
     remotePatterns: [
       {
         protocol: 'https',
@@ -32,9 +33,8 @@ const nextConfig: NextConfig = {
         protocol: 'http',
         hostname: 'localhost',
         port: '5000',
-        pathname: '/', // Changed from '/api/v1/' to allow all paths
+        pathname: '/',
       },
-      // ✅ ADD THESE TWO FOR CLOUDINARY
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
@@ -47,6 +47,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/',
       },
+    ],
+    // ✅ Add these domains to allow list
+    domains: [
+      'res.cloudinary.com',
+      'placehold.co',
+      'images.unsplash.com',
+      'picsum.photos',
     ],
   },
 };
