@@ -1,0 +1,52 @@
+{
+  "placeholderImages": [
+    {
+      "id": "avocado-toast",
+      "description": "A slice of toast with avocado",
+      "imageUrl": "/images/avocado toast.webp",
+      "imageHint": "avocado toast"
+    },
+    {
+      "id": "quinoa-salad",
+      "description": "A bowl of healthy quinoa salad",
+      "imageUrl": "/images/Quinoa Salad.jpg",
+      "imageHint": "healthy salad"
+    },
+    {
+      "id": "veggie-burger",
+      "description": "A delicious veggie burger with a side of fries",
+      "imageUrl": "/images/veg-burger.jpg",
+      "imageHint": "veggie burger"
+    },
+    {
+      "id": "classic-burger",
+      "description": "A classic beef burger with cheese and lettuce",
+      "imageUrl": "/images/classic-burger.webp",
+      "imageHint": "beef burger"
+    },
+    {
+      "id": "iced-tea",
+      "description": "A tall glass of iced tea with a lemon slice",
+      "imageUrl": "/images/icedTea.jpg",
+      "imageHint": "iced tea"
+    },
+    {
+      "id": "pizza1",
+      "description": "Margherita Pizza",
+      "imageUrl": "/images/pizza.png",
+      "imageHint": "margherita pizza"
+    },
+    {
+      "id": "coffee1",
+      "description": "Espresso",
+      "imageUrl": "/images/cofffee.jpg",
+      "imageHint": "espresso shot"
+    },
+    {
+      "id": "dessert1",
+      "description": "Chocolate Cake",
+      "imageUrl": "/images/cake.png",
+      "imageHint": "chocolate cake"
+    }
+  ]
+}
