@@ -22,17 +22,32 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-//   DialogTrigger, // Not used if Dialog controlled by state
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+// --- ADD THESE IMPORTS ---
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+// --- END ADDED IMPORTS ---
 import type { MenuItem } from '@/lib/types';
 import Image from 'next/image';
-import { useCart } from '@/hooks/use-cart'; // Using the updated hook
-import { useAuth } from '@/hooks/use-auth'; // Assuming this handles login status/token
+import { useCart } from '@/hooks/use-cart';
+import { useAuth } from '@/hooks/use-auth';
 
 // Helper function to correctly parse boolean values from DB
 const normalizeBool = (val: any) => val === true || val === 'true' || Number(val) === 1;
+
+// --- ADD THIS CATEGORY LIST ---
+const CATEGORIES = [
+  "Specials", "Beverages", "Starters", "Salads", "Soups",
+  "Main Course", "Breads", "Desserts", "Appetizers"
+];
+// --- END ADDED LIST ---
 
 export default function MenuEditorPage() {
   // Get state and actions from the updated hook
@@ -151,13 +166,19 @@ export default function MenuEditorPage() {
     // Basic validation
     if (!editedItem.name?.trim()) { toast({ variant: 'destructive', title: 'Validation', description: 'Name required.' }); return; }
     if (typeof editedItem.price !== 'number' || isNaN(editedItem.price) || editedItem.price < 0) { toast({ variant: 'destructive', title: 'Validation', description: 'Valid price required.' }); return; }
+    // --- ADD Validation for category ---
+    if (!editedItem.category || editedItem.category.trim() === '') {
+      toast({ variant: 'destructive', title: 'Validation', description: 'Category is required.' });
+      return;
+    }
+    // --- END Validation ---
 
     const form = new FormData();
     // Use keys expected by backend (check your backend menu routes)
     form.append('name', String(editedItem.name));
     form.append('description', String(editedItem.description ?? ''));
     form.append('price', String(editedItem.price));
-    form.append('category', String(editedItem.category ?? 'Uncategorized'));
+    form.append('category', String(editedItem.category)); // Already a string
     form.append('isVegetarian', String(!!editedItem.isVegetarian));
     if (editedItem.preparationTime != null) form.append('preparationTime', String(editedItem.preparationTime));
     form.append('isAvailable', String(editedItem.isAvailable ?? true));
@@ -245,7 +266,7 @@ export default function MenuEditorPage() {
   // --- FULL renderEditDialog function ---
   const renderEditDialog = () => (
     <Dialog open={!!isEditing || isCreating} onOpenChange={(isOpen) => { if (!isOpen) { setIsEditing(null); setIsCreating(false); setEditedItem({}); } }}>
-      <DialogContent className="sm:max-w-[425px]"> {/* Added width constraint */}
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Menu Item' : 'Create New Item'}</DialogTitle>
         </DialogHeader>
@@ -265,11 +286,28 @@ export default function MenuEditorPage() {
             <Label htmlFor="price" className="text-right">Price (₹)</Label>
             <Input id="price" type="number" step="0.01" value={editedItem.price ?? ''} onChange={(e) => setEditedItem({ ...editedItem, price: parseFloat(e.target.value) || 0 })} className="col-span-3" required />
           </div>
-          {/* Category */}
+          
+          {/* --- MODIFIED: Category Input changed to Select --- */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">Category</Label>
-            <Input id="category" value={editedItem.category || ''} onChange={(e) => setEditedItem({ ...editedItem, category: e.target.value })} className="col-span-3" placeholder="e.g., Starters, Main Course" required />
+            <Select
+              value={editedItem.category || ''}
+              onValueChange={(value) => setEditedItem({ ...editedItem, category: value })}
+            >
+              <SelectTrigger id="category" className="col-span-3">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          {/* --- END MODIFICATION --- */}
+
           {/* Prep Time */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="preptime" className="text-right">Prep Time (min)</Label>
@@ -282,7 +320,7 @@ export default function MenuEditorPage() {
               <Switch id="isVegetarian" checked={!!editedItem.isVegetarian} onCheckedChange={(v) => setEditedItem({ ...editedItem, isVegetarian: !!v })} />
             </div>
           </div>
-           {/* Available Toggle (useful if creating defaults to unavailable) */}
+           {/* Available Toggle */}
            <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isAvailable" className="text-right">Available</Label>
             <div className="col-span-3 flex items-center">
@@ -375,7 +413,7 @@ export default function MenuEditorPage() {
                 ))}
               </TableBody>
             </Table>
-            )} {/* End loading check */}
+            )}
           </CardContent>
       </Card>
     </div>
