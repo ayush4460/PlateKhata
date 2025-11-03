@@ -16,6 +16,9 @@ import {
   AlertCircle,
   Croissant,
   Circle,
+  Salad,
+  Soup,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,15 +39,18 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCart } from '@/hooks/use-cart';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 
-
 const categories = [
   { name: 'Specials', id: 'specials', icon: Star },
-  { name: 'Beverages', id: 'beverages', icon: GlassWater },
+  { name: 'Appetizers', id: 'appetizers', icon: Sparkles },
   { name: 'Starters', id: 'starters', icon: Flame },
+  { name: 'Soups', id: 'soups', icon: Soup },
+  { name: 'Salads', id: 'salads', icon: Salad },
   { name: 'Main Course', id: 'main course', icon: UtensilsCrossed },
   { name: 'Breads', id: 'breads', icon: Croissant },
+  { name: 'Beverages', id: 'beverages', icon: GlassWater },
   { name: 'Desserts', id: 'desserts', icon: Cake },
 ];
+
 
 
 function MenuContent() {
