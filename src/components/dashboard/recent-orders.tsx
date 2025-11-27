@@ -35,7 +35,7 @@ export function RecentOrders() {
 
   // Sort all orders by date, newest first
   const allOrders = [...pastOrders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  
+
   const handleDelete = () => {
     if (orderToDelete) {
       cancelOrder(orderToDelete.id); // Call cancelOrder
@@ -81,41 +81,51 @@ export function RecentOrders() {
                       className={cn(
                         'capitalize',
                         // Match backend status strings for coloring
-                        (order.status === 'completed' || order.status === 'served') && 'bg-green-100 text-green-800 border-green-200',
-                        (order.status === 'preparing' || order.status === 'ready') && 'bg-blue-100 text-blue-800 border-blue-200',
-                        (order.status === 'pending' || order.status === 'confirmed') && 'bg-yellow-100 text-yellow-800 border-yellow-200',
-                        order.status === 'cancelled' && 'bg-red-100 text-red-800 border-red-200'
+                        (order.status === 'Completed' || order.status === 'Served') && 'bg-green-100 text-green-800 border-green-200',
+                        (order.status === 'Preparing' || order.status === 'Ready') && 'bg-blue-100 text-blue-800 border-blue-200',
+                        (order.status === 'Pending' || order.status === 'Confirmed') && 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                        order.status === 'Cancelled' && 'bg-red-100 text-red-800 border-red-200'
                       )}
                     >
                       {order.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
+                  <div className="flex flex-col gap-1">
                     <Badge
                       variant={order.paymentStatus === 'Approved' ? 'default' : 'secondary'}
                       className={cn(
                         'capitalize',
                         order.paymentStatus === 'Approved' && 'bg-green-100 text-green-800 border-green-200',
-                        order.paymentStatus === 'Pending' && 'bg-orange-100 text-orange-800 border-orange-200'
-                      )}
+                        ['Pending', 'Requested'].includes(order.paymentStatus as string) && 'bg-orange-100 text-orange-800 border-orange-200'
+                        )}
                     >
                       {order.paymentStatus}
                     </Badge>
+                    {/* Show method (Cash/UPI) if available */}
+                        {(order as any).paymentMethod && (
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold pl-1">
+                                {(order as any).paymentMethod}
+                            </span>
+                        )}
+                  </div>
                   </TableCell>
                   <TableCell className="text-right">₹{order.total.toFixed(2)}</TableCell>
                   <TableCell className="flex items-center gap-1">
-                    
-                    {/* --- MODIFIED CONDITION --- */}
+
                     {/* Only show Approve button if payment is Pending AND order is Ready or Served */}
-                    {order.paymentStatus === 'Pending' && (order.status === 'ready' || order.status === 'served') && (
-                    // --- END MODIFICATION ---
+                    {(order.paymentStatus === 'Pending' || order.paymentStatus === 'Requested') &&
+                    (order.status === 'ready' || order.status === 'served') && (
                       <Button variant="outline" size="sm" onClick={() => approvePayment(order.id)}>
                         Approve
                       </Button>
                     )}
 
-                    {/* Only show cancel button if status is 'pending' or 'confirmed' */}
-                    {(order.status === 'pending' || order.status === 'confirmed') && (
+            {/* Only show cancel button if status is 'pending' or 'confirmed' */}
+                    {(
+                      order.status === 'Pending' ||
+                      (order.paymentStatus === 'Pending' && order.status !== 'Completed' && order.status !== 'Served')
+                    ) && (
                       <AlertDialogTrigger asChild>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setOrderToDelete(order)}>
                           <Trash2 className="h-4 w-4" />

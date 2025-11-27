@@ -3,59 +3,108 @@
 
 import { OrderColumn } from '@/components/kitchen/order-column';
 import { useCart } from '@/hooks/use-cart';
-import { useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth'; // Import useAuth
+import { useEffect, useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from '@/components/ui/button'; // Import Button
+import { LogOut } from 'lucide-react'; // Import Icon
+
+// Match categories from your menu editor
+const KITCHEN_CATEGORIES = [
+  "All",
+  "Specials", "Beverages", "Starters", "Salads", "Soups",
+  "Main Course", "Breads", "Desserts", "Appetizers"
+];
 
 export default function KitchenPage() {
   const { kitchenOrders, updateKitchenOrderStatus, connectSocket } = useCart();
+  const { logout } = useAuth(); // Get logout function
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
-  // Connect to Socket.IO when the kitchen page mounts
-  // This ensures the kitchen gets real-time updates even if navigated to directly
   useEffect(() => {
-    // connectSocket function from useCart handles checking if already connected
     connectSocket();
-  }, [connectSocket]); // Dependency array ensures this runs once or if connectSocket changes
+  }, [connectSocket]);
 
-  // --- DEBUG LOG: Log the received kitchenOrders state ---
-  useEffect(() => {
-    console.log('[DEBUG KitchenPage] Received kitchenOrders state:', kitchenOrders);
-    // You can add more detailed logs here if needed:
-    // console.log('[DEBUG KitchenPage] New Orders:', kitchenOrders?.new);
-    // console.log('[DEBUG KitchenPage] In Progress Orders:', kitchenOrders?.['in-progress']);
-    // console.log('[DEBUG KitchenPage] Completed (Ready) Orders:', kitchenOrders?.completed);
-  }, [kitchenOrders]); // Re-run log whenever kitchenOrders state changes
-  // --- END DEBUG LOG ---
+  // Helper to filter items within an order based on selected category
+  const filterOrderItems = (orders: any[]) => {
+    if (selectedCategory === "All") return orders;
+
+    return orders.map(order => {
+      // Filter items inside the order
+      const relevantItems = order.items.filter((item: any) => item.category === selectedCategory);
+      
+      // Return a copy of the order with only relevant items
+      // If an order has 0 items in this category, we filter it out later
+      return {
+        ...order,
+        items: relevantItems
+      };
+    }).filter(order => order.items.length > 0); // Only show orders that have items in this category
+  };
 
   return (
-    // Grid layout for the three columns
-    <div className="grid h-full flex-1 grid-cols-1 gap-4 md:grid-cols-3">
-      {/* Column for New Orders */}
-      <OrderColumn
-        title="New Orders"
-        status="new" // Identifier for this column
-        // Pass the 'new' orders array from the hook state
-        // Add fallback to empty array in case the state is temporarily undefined/null
-        orders={kitchenOrders?.new || []}
+    <div className="flex flex-col h-full gap-4 p-4">
+      {/* Header with Title, Filter, and Logout */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background border rounded-lg shadow-sm">
+        <h1 className="text-2xl font-bold">Kitchen Dashboard</h1>
+        
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground hidden md:inline">Station:</span>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-[150px] md:w-[180px]">
+                <SelectValue placeholder="Select Category" />
+              </SelectTrigger>
+              <SelectContent>
+                {KITCHEN_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        onMoveOrder={(id) => updateKitchenOrderStatus(id, 'new', 'in-progress')}
-        actionText="Start Cooking"
-      />
+          {/* Logout Button */}
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={logout} 
+            className="gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden md:inline">Logout</span>
+          </Button>
+        </div>
+      </div>
 
-      {/* Column for Orders Being Cooked */}
-      <OrderColumn
-        title="Cooking"
-        status="in-progress"
-        orders={kitchenOrders?.['in-progress'] || []}
-        onMoveOrder={(id) => updateKitchenOrderStatus(id, 'in-progress', 'completed')}
-        actionText="Mark as Ready"
-      />
-
-      {/* Column for Completed/Ready Orders */}
-      <OrderColumn
-        title="Ready"
-        status="completed" // Identifier for this column
-        // Pass the 'completed' (meaning 'ready' in backend terms) orders array
-        orders={kitchenOrders?.completed || []}
-      />
+      {/* Kanban Board */}
+      <div className="grid h-full flex-1 grid-cols-1 gap-4 md:grid-cols-3">
+        <OrderColumn
+          title="New Orders"
+          status="new"
+          orders={filterOrderItems(kitchenOrders.new || [])}
+          onMoveOrder={(id) => updateKitchenOrderStatus(id, 'new', 'in-progress')}
+          actionText="Start Cooking"
+        />
+        <OrderColumn
+          title="Cooking"
+          status="in-progress"
+          orders={filterOrderItems(kitchenOrders['in-progress'] || [])}
+          onMoveOrder={(id) => updateKitchenOrderStatus(id, 'in-progress', 'completed')}
+          actionText="Mark as Ready"
+        />
+        <OrderColumn
+          title="Ready"
+          status="completed"
+          orders={filterOrderItems(kitchenOrders.completed || [])}
+        />
+      </div>
     </div>
   );
 }

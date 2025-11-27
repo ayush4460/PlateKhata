@@ -25,7 +25,6 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-// --- ADD THESE IMPORTS ---
 import {
   Select,
   SelectContent,
@@ -33,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// --- END ADDED IMPORTS ---
 import type { MenuItem } from '@/lib/types';
 import Image from 'next/image';
 import { useCart } from '@/hooks/use-cart';
@@ -42,24 +40,31 @@ import { useAuth } from '@/hooks/use-auth';
 // Helper function to correctly parse boolean values from DB
 const normalizeBool = (val: any) => val === true || val === 'true' || Number(val) === 1;
 
-// --- ADD THIS CATEGORY LIST ---
+// --- CATEGORY LIST ---
 const CATEGORIES = [
   "Specials", "Beverages", "Starters", "Salads", "Soups",
   "Main Course", "Breads", "Desserts", "Appetizers"
 ];
-// --- END ADDED LIST ---
 
 export default function MenuEditorPage() {
-  // Get state and actions from the updated hook
-  const { taxRate, setTaxRate, menuItems: initialMenuItemsFromHook, setMenuItems: setGlobalMenuItems } = useCart();
-  const [localMenuItems, setLocalMenuItems] = useState<MenuItem[]>([]); // Use local state for display/editing
+  // --- MODIFIED: Destructure discountRate and updateSettings ---
+  const {
+    taxRate,
+    discountRate,
+    updateSettings,
+    menuItems: initialMenuItemsFromHook,
+    setMenuItems: setGlobalMenuItems
+  } = useCart();
+  
+  const [localMenuItems, setLocalMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [localTaxRate, setLocalTaxRate] = useState(''); // Initialize empty, sync in useEffect
+  const [localTaxRate, setLocalTaxRate] = useState('');
+  const [localDiscountRate, setLocalDiscountRate] = useState('');
   const [isEditing, setIsEditing] = useState<MenuItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editedItem, setEditedItem] = useState<Partial<MenuItem> & { imageFile?: File | null }>({});
   const { toast } = useToast();
-  const { adminUser } = useAuth(); // If needed for display/auth checks
+  const { adminUser } = useAuth();
 
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
   const authHeaders = () => {
@@ -68,71 +73,73 @@ export default function MenuEditorPage() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // Sync local tax rate display when the global one changes (e.g., on initial load)
+  // --- MODIFIED: Sync both Tax and Discount ---
   useEffect(() => {
-    setLocalTaxRate((taxRate * 100).toFixed(2)); // Use toFixed for precision display
-  }, [taxRate]);
+    setLocalTaxRate((taxRate * 100).toFixed(2));
+    setLocalDiscountRate((discountRate * 100).toFixed(2));
+  }, [taxRate, discountRate]);
 
-  // Fetch menu items from backend on initial load
+  // Fetch menu items from backend
   useEffect(() => {
     let cancelled = false;
     async function fetchMenu() {
       setLoading(true);
       console.log("[Menu Editor] Fetching menu...");
       try {
-        const res = await fetch(`${API_BASE}/menu`, { headers: { ...authHeaders() } }); // Use auth headers
+        const res = await fetch(`${API_BASE}/menu`, { headers: { ...authHeaders() } });
         console.log("[Menu Editor] Fetch menu status:", res.status);
         if (!res.ok) {
-           const errText = await res.text(); console.error(errText);
-           throw new Error(`Failed to fetch menu (${res.status})`);
+          const errText = await res.text(); console.error(errText);
+          throw new Error(`Failed to fetch menu (${res.status})`);
         }
         const data = await res.json();
         const arr = Array.isArray(data) ? data : data?.items ?? data?.data ?? [];
         const mapped: MenuItem[] = arr.map((o: any) => ({
-          id: String(o.item_id ?? o.id ?? o.itemId ?? o._id ?? ''), // Prefer item_id from DB
+          id: String(o.item_id ?? o.id ?? o.itemId ?? o._id ?? ''),
           name: o.name ?? 'Unnamed',
           description: o.description ?? '',
           price: Number(o.price ?? 0),
           category: o.category ?? 'Uncategorized',
           image: { url: (() => { const u = o.image_url ?? o.imageUrl ?? o.image?.url ?? o.image; if (!u) return 'https://placehold.co/300x300'; if (u.startsWith('http')) return u; return `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`; })(), hint: '' },
-          imageId: o.imageId ?? '', // Usually set during upload response
-          isAvailable: normalizeBool(o.is_available ?? o.isAvailable), // Prefer snake_case from DB
-          isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian), // Prefer snake_case from DB
-          preparationTime: o.preparation_time ?? o.preparationTime ?? null, // Prefer snake_case
+          imageId: o.imageId ?? '',
+          isAvailable: normalizeBool(o.is_available ?? o.isAvailable),
+          isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian),
+          preparationTime: o.preparation_time ?? o.preparationTime ?? null,
         }));
         if (!cancelled) {
-            setLocalMenuItems(mapped); // Update local state for display
-            // Optionally update global state if needed elsewhere
-            // setGlobalMenuItems(mapped);
+            setLocalMenuItems(mapped);
             console.log("[Menu Editor] Menu items loaded:", mapped.length);
         }
       } catch (err) {
         console.error('Error fetching menu items:', err);
         toast({ variant: 'destructive', title: 'Failed to load menu', description: (err as Error).message });
-        if (!cancelled) setLocalMenuItems([]); // Clear on error
+        if (!cancelled) setLocalMenuItems([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     fetchMenu();
     return () => { cancelled = true; };
-  // Only depend on API_BASE and toast for fetchMenu itself
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE, toast]);
 
-  const handleTaxRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalTaxRate(e.target.value);
-  };
+  // --- MODIFIED: Handle Settings Save (Tax & Discount) ---
+  const handleSaveSettings = async () => {
+    const newTaxPercent = parseFloat(localTaxRate);
+    const newDiscountPercent = parseFloat(localDiscountRate);
 
-  const handleSaveTaxRate = async () => {
-    const newRatePercent = parseFloat(localTaxRate);
-    if (isNaN(newRatePercent) || newRatePercent < 0 || newRatePercent > 50) { // Validate percentage
+    if (isNaN(newTaxPercent) || newTaxPercent < 0 || newTaxPercent > 50) {
       toast({ variant: 'destructive', title: 'Invalid Tax Rate', description: 'Enter % between 0-50.' }); return;
     }
-    const newRateDecimal = newRatePercent / 100;
+    if (isNaN(newDiscountPercent) || newDiscountPercent < 0 || newDiscountPercent > 100) {
+      toast({ variant: 'destructive', title: 'Invalid Discount', description: 'Enter % between 0-100.' }); return;
+    }
+
     try {
-        await setTaxRate(newRateDecimal); // Call async function from hook
-        toast({ title: 'Tax Rate Update', description: `Request sent to set rate to ${newRatePercent.toFixed(2)}%.` }); // Indicate request sent
+        await updateSettings(newTaxPercent / 100, newDiscountPercent / 100);
+        toast({
+            title: 'Settings Saved',
+            description: `Tax: ${newTaxPercent.toFixed(2)}%, Discount: ${newDiscountPercent.toFixed(2)}%`
+        });
     } catch (error) { /* Error handled in hook */ }
   };
 
@@ -157,28 +164,25 @@ export default function MenuEditorPage() {
       const res = await fetch(`${API_BASE}/menu/${numericId}`, { method: 'DELETE', headers: { ...authHeaders() } });
       if (!res.ok) { const txt = await res.text().catch(()=>''); throw new Error(txt || `Status ${res.status}`); }
       setLocalMenuItems((currentItems) => currentItems.filter((it) => it.id !== String(numericId)));
-      // setGlobalMenuItems(localMenuItems.filter((it) => it.id !== String(numericId))); // Update global if needed
       toast({ title: 'Item Deleted' });
     } catch (err) { toast({ variant: 'destructive', title: 'Delete failed', description: (err as Error).message }); }
   };
 
   const handleSave = async () => {
-    // Basic validation
     if (!editedItem.name?.trim()) { toast({ variant: 'destructive', title: 'Validation', description: 'Name required.' }); return; }
     if (typeof editedItem.price !== 'number' || isNaN(editedItem.price) || editedItem.price < 0) { toast({ variant: 'destructive', title: 'Validation', description: 'Valid price required.' }); return; }
-    // --- ADD Validation for category ---
+
+    // Category Validation
     if (!editedItem.category || editedItem.category.trim() === '') {
       toast({ variant: 'destructive', title: 'Validation', description: 'Category is required.' });
       return;
     }
-    // --- END Validation ---
 
     const form = new FormData();
-    // Use keys expected by backend (check your backend menu routes)
     form.append('name', String(editedItem.name));
     form.append('description', String(editedItem.description ?? ''));
     form.append('price', String(editedItem.price));
-    form.append('category', String(editedItem.category)); // Already a string
+    form.append('category', String(editedItem.category));
     form.append('isVegetarian', String(!!editedItem.isVegetarian));
     if (editedItem.preparationTime != null) form.append('preparationTime', String(editedItem.preparationTime));
     form.append('isAvailable', String(editedItem.isAvailable ?? true));
@@ -192,9 +196,9 @@ export default function MenuEditorPage() {
       const res = await fetch(url, { method, headers: { ...authHeaders() }, body: form });
       if (!res.ok) { const txt = await res.text().catch(()=>''); throw new Error(txt || `Save failed (Status ${res.status})`); }
       const json = await res.json();
-      const o = json?.item ?? json?.data ?? json; // Adjust based on backend response structure
+      const o = json?.item ?? json?.data ?? json;
 
-       const savedItem: MenuItem = {
+      const savedItem: MenuItem = {
           id: String(o.item_id ?? o.id ?? o.itemId ?? o._id ?? (isUpdating ? isEditing.id : `temp-${Date.now()}`)),
           name: o.name ?? 'Unnamed', description: o.description ?? '', price: Number(o.price ?? 0),
           category: o.category ?? 'Uncategorized',
@@ -210,10 +214,9 @@ export default function MenuEditorPage() {
       } else {
         setLocalMenuItems(current => [...current, savedItem]);
       }
-      // setGlobalMenuItems(localMenuItems); // Update global if needed
 
       toast({ title: isUpdating ? 'Item Updated' : 'Item Created' });
-      setIsEditing(null); setIsCreating(false); setEditedItem({}); // Close dialog
+      setIsEditing(null); setIsCreating(false); setEditedItem({});
 
     } catch (err: any) {
       console.error('Save menu item failed', err);
@@ -222,12 +225,10 @@ export default function MenuEditorPage() {
   };
 
   const handleToggle = async (itemId: string, field: 'isAvailable') => {
-    // Only handles isAvailable now
     const item = localMenuItems.find((it) => it.id === itemId);
     if (!item) return;
     const currentValue = item[field]; const newValue = !currentValue;
 
-    // Optimistic UI update on local state
     setLocalMenuItems((s) => s.map((it) => it.id === itemId ? { ...it, [field]: newValue } : it));
 
     try {
@@ -236,14 +237,11 @@ export default function MenuEditorPage() {
       const json = await res.json();
       const o = json?.item ?? json?.data ?? json;
       const serverValue = normalizeBool(o[field] ?? o['is_available']);
-      // Re-sync local state with server response
       setLocalMenuItems((s) => s.map((it) => it.id === itemId ? { ...it, [field]: serverValue } : it));
-      // setGlobalMenuItems(localMenuItems.map((it) => it.id === itemId ? { ...it, [field]: serverValue } : it)); // Update global if needed
       toast({ title: 'Availability updated' });
     } catch (err) {
       console.error('Toggle availability failed', err);
       toast({ variant: 'destructive', title: 'Update failed', description: (err as Error).message });
-      // Revert optimistic update on failure
       setLocalMenuItems((s) => s.map((it) => it.id === itemId ? { ...it, [field]: currentValue } : it));
     }
   };
@@ -263,7 +261,6 @@ export default function MenuEditorPage() {
       }
   };
 
-  // --- FULL renderEditDialog function ---
   const renderEditDialog = () => (
     <Dialog open={!!isEditing || isCreating} onOpenChange={(isOpen) => { if (!isOpen) { setIsEditing(null); setIsCreating(false); setEditedItem({}); } }}>
       <DialogContent className="sm:max-w-[425px]">
@@ -286,8 +283,8 @@ export default function MenuEditorPage() {
             <Label htmlFor="price" className="text-right">Price (₹)</Label>
             <Input id="price" type="number" step="0.01" value={editedItem.price ?? ''} onChange={(e) => setEditedItem({ ...editedItem, price: parseFloat(e.target.value) || 0 })} className="col-span-3" required />
           </div>
-          
-          {/* --- MODIFIED: Category Input changed to Select --- */}
+
+          {/* Category Select */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">Category</Label>
             <Select
@@ -306,7 +303,6 @@ export default function MenuEditorPage() {
               </SelectContent>
             </Select>
           </div>
-          {/* --- END MODIFICATION --- */}
 
           {/* Prep Time */}
           <div className="grid grid-cols-4 items-center gap-4">
@@ -351,31 +347,33 @@ export default function MenuEditorPage() {
       </DialogContent>
     </Dialog>
   );
-  // --- END renderEditDialog ---
 
   // --- Main return JSX ---
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8">
-      {renderEditDialog()} {/* Call the function to render the dialog */}
+      {renderEditDialog()} 
+
       <Card>
           <CardHeader>
-              <CardTitle>Tax Settings</CardTitle>
-              <CardDescription>Set the tax rate (%). This applies to NEW orders.</CardDescription>
+              <CardTitle>Payment Settings</CardTitle>
+              <CardDescription>Configure Tax and Global Discount.</CardDescription>
           </CardHeader>
           <CardContent>
-              <div className="grid gap-2 max-w-sm">
-                  <Label htmlFor="tax-rate">Tax Rate (%)</Label>
-                  <div className="flex items-center gap-2">
-                      <Input
-                          id="tax-rate" type="number" step="0.01"
-                          value={localTaxRate} onChange={handleTaxRateChange}
-                          placeholder="e.g., 8.00"
-                      />
-                      <Button onClick={handleSaveTaxRate}>Save Rate</Button>
+              <div className="grid gap-4 max-w-sm">
+                  <div className="grid gap-2">
+                      <Label htmlFor="tax-rate">Tax Rate (%)</Label>
+                      <Input id="tax-rate" type="number" step="0.01" value={localTaxRate} onChange={(e) => setLocalTaxRate(e.target.value)} placeholder="e.g. 8.00"/>
                   </div>
+                  <div className="grid gap-2">
+                      <Label htmlFor="discount-rate">Discount Rate (%)</Label>
+                      <Input id="discount-rate" type="number" step="0.01" value={localDiscountRate} onChange={(e) => setLocalDiscountRate(e.target.value)} placeholder="e.g. 5.00"/>
+                  </div>
+                  <Button onClick={handleSaveSettings}>Save Settings</Button>
               </div>
           </CardContent>
       </Card>
+      {/* --- END MODIFICATION --- */}
+
       <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div> <CardTitle>Menu Items</CardTitle> <CardDescription>Manage menu items.</CardDescription> </div>
@@ -395,7 +393,6 @@ export default function MenuEditorPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* Use localMenuItems for rendering */}
                 {localMenuItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
