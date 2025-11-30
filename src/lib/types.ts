@@ -26,7 +26,7 @@ export interface CartItem extends MenuItem {
 // The backend's raw Order Item structure
 export interface BackendOrderItem {
   item_id: number;
-  name: string;
+  item_name: string;
   quantity: number;
   price: number;
   special_instructions: string | null;
@@ -44,7 +44,7 @@ export interface BackendOrder {
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
+  order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
   payment_status: 'Pending' | 'Approved';
   payment_method?: 'Cash' | 'UPI' | 'Card' | 'Other';
   created_at: string; // ISO date string
@@ -52,14 +52,14 @@ export interface BackendOrder {
   order_type: 'regular' | 'addon';
 }
 
-// Customer-facing order for "My Orders" page
+// Past order structure used in user account
 export interface PastOrder {
-  id: string; // The order's ID
+  id: string;
   orderNumber: string;
   userName: string;
   userPhone: string;
   tableNumber: string;
-  date: string; // ISO date string
+  date: string;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Ready' | 'Served' | 'Completed' | 'Cancelled';
   paymentStatus: 'Pending' | 'Approved';
   paymentMethod?: string;
@@ -74,11 +74,12 @@ export interface PastOrder {
     price: number;
   }[];
   orderType?: 'regular' | 'addon';
+  sessionId?: string;
 }
 
 // Kitchen-facing order)
 export interface KitchenOrder {
-  id: string; // The order's ID
+  id: string;
   orderNumber: string;
   table: string;
   items: {
@@ -87,8 +88,8 @@ export interface KitchenOrder {
     specialInstructions: string | null;
     category: string;
   }[];
-  time: string; // e.g., "Just now" or "10:32 AM"
-  status: 'confirmed' | 'preparing' | 'ready'; // Backend status
+  time: string;
+  status: 'confirmed' | 'preparing' | 'ready';
   created_at: string;
   orderType: 'regular' | 'addon';
 }
@@ -105,13 +106,13 @@ export interface SalesData {
   sales: number;
 }
 
-// --- TableStatus ---
+// TableStatus
 export interface TableStatus {
-  id: number; // Corresponds to table_id from backend
-  tableNumber: string; // Corresponds to table_number from backend
+  id: number;
+  tableNumber: string;
   capacity: number;
-  qrCodeUrl: string; // Corresponds to qr_code_url from backend
-  isAvailable: boolean; // Corresponds to is_available from backend
+  qrCodeUrl: string;
+  isAvailable: boolean;
   status: 'Empty' | 'Occupied';
 }
 

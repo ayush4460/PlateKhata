@@ -31,7 +31,7 @@ export function SalesChart() {
                 borderRadius: 'var(--radius)',
                 border: '1px solid hsl(var(--border))',
               }}
-               formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Sales']}
+                formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Sales']}
             />
             <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
           </BarChart>

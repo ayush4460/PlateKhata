@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from '@/components/ui/button'; // Import Button
-import { LogOut } from 'lucide-react'; // Import Icon
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
 
 // Match categories from your menu editor
 const KITCHEN_CATEGORIES = [
@@ -24,7 +24,7 @@ const KITCHEN_CATEGORIES = [
 
 export default function KitchenPage() {
   const { kitchenOrders, updateKitchenOrderStatus, connectSocket } = useCart();
-  const { logout } = useAuth(); // Get logout function
+  const { logout } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   useEffect(() => {
@@ -38,14 +38,12 @@ export default function KitchenPage() {
     return orders.map(order => {
       // Filter items inside the order
       const relevantItems = order.items.filter((item: any) => item.category === selectedCategory);
-      
-      // Return a copy of the order with only relevant items
-      // If an order has 0 items in this category, we filter it out later
+
       return {
         ...order,
         items: relevantItems
       };
-    }).filter(order => order.items.length > 0); // Only show orders that have items in this category
+    }).filter(order => order.items.length > 0);
   };
 
   return (
@@ -53,7 +51,7 @@ export default function KitchenPage() {
       {/* Header with Title, Filter, and Logout */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background border rounded-lg shadow-sm">
         <h1 className="text-2xl font-bold">Kitchen Dashboard</h1>
-        
+
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           {/* Category Filter */}
           <div className="flex items-center gap-2">
@@ -71,10 +69,10 @@ export default function KitchenPage() {
           </div>
 
           {/* Logout Button */}
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={logout} 
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={logout}
             className="gap-2"
           >
             <LogOut className="h-4 w-4" />

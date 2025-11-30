@@ -8,7 +8,8 @@ import React, {
   ReactNode,
   useEffect,
   useCallback,
-  useMemo
+  useMemo,
+  useRef
 } from 'react';
 import type {
   CartItem,
@@ -83,9 +84,11 @@ interface CartContextType {
   salesData: SalesData[];
   isCartLoading: boolean;
   tableNumber: string | null;
+  customerDetails: { name: string; phone: string; } | null;
   setTable: (table: string) => void;
   tableStatuses: TableStatus[];
   createTable: (tableNumber: string, capacity: number) => Promise<boolean>;
+  clearTableSession: (tableId: number) => Promise<void>;
   analyticsPeriod: AnalyticsPeriod;
   setAnalyticsPeriod: (period: AnalyticsPeriod) => void;
   connectSocket: () => void;
@@ -115,10 +118,16 @@ const writeToStorage = <T,>(key: string, data: T) => {
 };
 
 // --- Auth Helper ---
-const authHeaders = () => {
+const authHeaders =  (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = {};
+
+  const adminToken = localStorage.getItem('accessToken');
+  if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+
+  const sessionToken = localStorage.getItem('session_token');
+  if (sessionToken) headers['x-session-token'] = sessionToken;
+  return headers;
 };
 
 // Helper to get role from storage safely
@@ -148,6 +157,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
   tax: parseFloat(String(order.tax_amount || '0')),
   discount: parseFloat(String(order.discount_amount || '0')),
   orderType: order.order_type,
+  session_id: order.session_id,
   items: (order.items || []).map(item => ({
     id: String(item.item_id),
     name: item.item_name || 'N/A',
@@ -187,6 +197,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // --- State Variables ---
   const [cart, setCart] = useState<CartItem[]>([]);
   const { toast } = useToast();
+  const isSubmittingRef = useRef(false);
   const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<KitchenOrdersState>({
     new: [],
@@ -201,52 +212,85 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [isCartLoading, setIsCartLoading] = useState(true);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [backendTables, setBackendTables] = useState<any[]>([]);
+  const [customerDetails, setCustomerDetails] = useState<{ name: string; phone: string; } | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 
   // --- Initial Data Loading Effect ---
   useEffect(() => {
     setIsCartLoading(true);
+
+    // Load cart from localStorage
     const storedCart = safeJsonParse<CartItem[]>(localStorage.getItem('cart')) ?? [];
-    const storedTableNumber = safeJsonParse<string>(localStorage.getItem('tableNumber'));
     setCart(storedCart);
 
+    // Load table number from localStorage
+    const storedTableNumber = safeJsonParse<string>(localStorage.getItem('tableNumber'));
     if (storedTableNumber) {
       setTableNumber(storedTableNumber);
     }
+    
+    // Load customer details from localStorage
+    const storedCustomer = safeJsonParse<{ name: string; phone: string }>(
+      localStorage.getItem('Five_petals_customer')
+    );
 
+    if (storedCustomer) {
+      setCustomerDetails(storedCustomer);
+    }
+    
+    // Load session token from localStorage
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('session_token');
+      //console.log('[DEBUG INIT] Loaded session_token:', stored ? 'present' : 'null');
+      if (stored) {
+        setSessionToken(stored);
+      }
+    }
+
+    // Load admin-specific data if authenticated
+    if (hasAuthToken()) {
+
+      const storedMenuItems = safeJsonParse<MenuItem[]>(localStorage.getItem('menuItems')) ?? [];
+      const storedTaxRate = safeJsonParse<number>(localStorage.getItem('taxRate')) ?? 0.08;
+      const storedDiscountRate = safeJsonParse<number>(localStorage.getItem('discountRate')) ?? 0.00;
+      setMenuItemsState(storedMenuItems);
+      setTaxRateState(storedTaxRate);
+      setDiscountRate(storedDiscountRate);
+    }
+
+    // Initialize empty orders
     setPastOrders([]);
 
-    if (hasAuthToken()) {
-        const storedMenuItems = safeJsonParse<MenuItem[]>(localStorage.getItem('menuItems')) ?? [];
-        const storedTaxRate = safeJsonParse<number>(localStorage.getItem('taxRate')) ?? 0.08;
-        const storedDiscountRate = safeJsonParse<number>(localStorage.getItem('discountRate')) ?? 0.00;
-        setMenuItemsState(storedMenuItems);
-        setTaxRateState(storedTaxRate);
-        setDiscountRate(storedDiscountRate);
-    }
+    // Connect socket
+    console.log('[DEBUG INIT] Connecting socket...');
     connectSocket();
+
     setIsCartLoading(false);
+
   }, []);
+
+
 
   // --- API Fetching Functions ---
   const extractArrayFromResponse = (responseData: any, context: string): any[] => {
     if (Array.isArray(responseData)) {
-      console.log(`[DEBUG ${context}] Response is direct array:`, responseData.length);
+      //console.log(`[DEBUG ${context}] Response is direct array:`, responseData.length);
       return responseData;
     }
 
     if (responseData && Array.isArray(responseData.data)) {
-      console.log(`[DEBUG ${context}] Extracted array from response.data:`, responseData.data.length);
+      //console.log(`[DEBUG ${context}] Extracted array from response.data:`, responseData.data.length);
       return responseData.data;
     }
 
     if (responseData && responseData.success === true && Array.isArray(responseData.orders)) {
-      console.log(`[DEBUG ${context}] Extracted array from response.orders:`, responseData.orders.length);
+      //console.log(`[DEBUG ${context}] Extracted array from response.orders:`, responseData.orders.length);
       return responseData.orders;
     }
 
     if (responseData && responseData.success === true && Array.isArray(responseData.tables)) {
-      console.log(`[DEBUG ${context}] Extracted array from response.tables:`, responseData.tables.length);
+      //console.log(`[DEBUG ${context}] Extracted array from response.tables:`, responseData.tables.length);
       return responseData.tables;
     }
 
@@ -261,9 +305,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
 
-    console.log('[DEBUG] Admin detected, Fetching tables...');
     try {
-      const res = await fetch(`${API_BASE}/tables`, { headers: { ...authHeaders() } });
+      const res = await fetch(`${API_BASE}/tables`, { method: 'GET' ,headers: { ...authHeaders() } });
       if (res.status === 403) {
           setBackendTables([]);
           return;
@@ -278,18 +321,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchKitchenOrders = useCallback(async () => {
-    if (!hasAuthToken()) {
-      setKitchenOrders({ new: [], 'in-progress': [], completed: [] });
-      return;
-    }
 
-    console.log('[DEBUG] Fetching kitchen orders...');
     try {
       const res = await fetch(`${API_BASE}/orders/kitchen/active`, {
         headers: { ...authHeaders() }
       });
 
-      console.log('[DEBUG] Fetch kitchen orders status:', res.status);
+      //console.log('[DEBUG] Fetch kitchen orders status:', res.status);
 
       if (res.status === 403) {
         throw new Error('Permission denied (403)');
@@ -300,7 +338,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const responseData = await res.json();
       const orders: BackendOrder[] = extractArrayFromResponse(responseData, 'fetchKitchenOrders');
 
-      console.log('[DEBUG] Raw Kitchen Orders Data:', orders.length);
       if (!Array.isArray(orders)) {
         throw new Error('Invalid data format');
       }
@@ -311,13 +348,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       orders.forEach(o => {
         const ko = mapBackendOrderToKitchenOrder(o);
-        if (o.order_status === 'pending' || o.order_status === 'confirmed') {
-          newO.push(ko);
-        } else if (o.order_status === 'preparing') {
-          inProg.push(ko);
-        } else if (o.order_status === 'ready') {
-          ready.push(ko);
-        }
+          if (o.order_status === 'pending' || o.order_status === 'confirmed') {
+      newO.push(ko);
+  } else if (o.order_status === 'preparing') {
+      inProg.push(ko);
+  } else if (o.order_status === 'ready') {
+      ready.push(ko);
+  }
       });
 
       const sortByDateDesc = (a: { created_at: string }, b: { created_at: string }) =>
@@ -327,19 +364,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       inProg.sort(sortByDateDesc);
       ready.sort(sortByDateDesc);
 
-      console.log('[DEBUG] State to be set for kitchenOrders:', {
-        new: newO.length,
-        'in-progress': inProg.length,
-        completed: ready.length
-      });
-
       setKitchenOrders({
         new: newO,
         'in-progress': inProg,
         completed: ready
       });
 
-      console.log('[DEBUG] Updated kitchen orders state successfully.');
+      //console.log('[DEBUG] Updated kitchen orders state successfully.');
     } catch (error) {
       console.error('[DEBUG] Error fetchKitchenOrders:', error);
       toast({
@@ -351,96 +382,131 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast]);
 
-  // --- MODIFIED: fetchRelevantOrders ---
+  //  fetchRelevantOrders
   const fetchRelevantOrders = useCallback(async () => {
-    let url = `${API_BASE}/orders`;
-    let headers: HeadersInit = { 'Content-Type': 'application/json' };
-    const isAdminUser = hasAuthToken();
-    let queryParams: string[] = [];
-    let context = '';
 
-    if (isAdminUser) {
-      const adminStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'served', 'completed', 'cancelled'];
-      queryParams = adminStatuses.map(s => `status=${s}`);
-      queryParams.push('limit=200');
-      url = `${API_BASE}/orders?${queryParams.join('&')}`;
-      headers = { ...headers, ...authHeaders() };
-      context = 'Admin (All Statuses)';
-      console.log('[DEBUG] Admin fetching ALL orders for dashboard...');
-    } else if (tableNumber) {
-      // Customer only needs ACTIVE statuses for their table
-      const activeStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'served'];
-      queryParams = activeStatuses.map(s => `status=${s}`);
-      queryParams.push(`tableId=${tableNumber}`);
-      url = `${API_BASE}/orders?${queryParams.join('&')}`;
-      context = `Customer Table ${tableNumber}`;
-      console.log(`[DEBUG] Customer fetching active orders for table ${tableNumber}...`);
-    } else {
-      // Neither admin nor customer with a table context, clear orders
-      console.log('[DEBUG] Not fetching relevant orders - no token or table number.');
-      setPastOrders([]);
-      return;
-    }
+      let url = `${API_BASE}/orders`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      
+      const isAdminUser = hasAuthToken();
 
-    try {
-      const res = await fetch(url, { headers });
-      console.log(`[DEBUG] Fetch relevant orders (${context}) status:`, res.status);
+      if (isAdminUser) {
+        // Admin: fetch all orders with all statuses
+        const queryParams: string[] = [];
+        ['pending', 'confirmed', 'preparing', 'ready', 'served', 'completed', 'cancelled']
+          .forEach(s => queryParams.push(`status=${s}`));
+        queryParams.push('limit=200');
+        url = `${API_BASE}/orders?${queryParams.join('&')}`;
 
-      if (!res.ok && (res.status === 401 || res.status === 403)) {
-        console.error(`[DEBUG] Auth error (${res.status}) fetchRelevantOrders.`);
-        if (isAdminUser) {
-          toast({ variant: 'destructive', title: 'Auth Error' });
-        } else {
-          console.error('[DEBUG] Backend requires auth? Check optionalAuth.');
-          toast({ variant: 'destructive', title: 'Error' });
-        }
+        Object.assign(headers, authHeaders());
+        //console.log('[DEBUG FETCH] Admin mode - URL:', url);
+      } else if (sessionToken && tableNumber) {
+        // Customer: Fetch orders for current session (INCLUDING COMPLETED)
+        const queryParams: string[] = [];
+
+        // This allows receipt download during grace period
+        ['pending', 'confirmed', 'preparing', 'ready', 'served', 'completed']
+          .forEach(s => queryParams.push(`status=${s}`));
+        
+        // Pass tableId
+        queryParams.push(`tableId=${tableNumber}`);
+        
+        url = `${API_BASE}/orders?${queryParams.join('&')}`;
+        
+        // CRITICAL: Session token in header
+        headers['x-session-token'] = sessionToken;
+
+      } else {
+        // No valid auth
+        //console.log('[DEBUG FETCH] No auth - returning empty');
         setPastOrders([]);
         return;
       }
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Status ${res.status}: ${errorText}`);
-      }
+      try {
 
-      const responseData = await res.json();
-      const orders: BackendOrder[] = extractArrayFromResponse(
-        responseData,
-        `fetchRelevantOrders (${context})`
-      );
+        
+        const res = await fetch(url, { headers });
 
-      console.log('[DEBUG] Raw Relevant Orders Data:', orders.length);
-      if (!Array.isArray(orders)) {
-        throw new Error('Invalid data format');
-      }
+        //console.log('[DEBUG FETCH] Response status:', res.status);
 
-      const mappedOrders = orders.map(mapBackendOrderToPastOrder);
-      console.log(`[DEBUG fetchRelevantOrders] Preparing to set pastOrders state with ${mappedOrders.length} orders.`);
-      setPastOrders(mappedOrders);
-      console.log('[DEBUG fetchRelevantOrders] Successfully called setPastOrders.');
-    } catch (error) {
-      console.error(`[DEBUG] Error fetchRelevantOrders (${context}):`, error);
-      if (isAdminUser) {
-        toast({
-          variant: 'destructive',
-          title: 'Order Error',
-          description: 'Could not load.'
-        });
+        if (!res.ok) {
+            if (isAdminUser) {
+              toast({ variant: 'destructive', title: 'Auth Error' });
+            }
+            //console.log('[DEBUG FETCH] Response not OK, clearing orders');
+            setPastOrders([]);
+            return;
+        }
+
+        if (res.status === 401 || res.status === 403) {
+              if (!isAdminUser) {
+                  console.log(' Session expired/invalid. Clearing local token.');
+                  localStorage.removeItem('session_token');
+                  setSessionToken(null);
+              }
+              setPastOrders([]);
+              return;
+        }
+
+        const responseData = await res.json();
+        //console.log('[DEBUG FETCH] Raw response:', responseData);
+
+        const orders: BackendOrder[] = extractArrayFromResponse(responseData, `fetchRelevantOrders`);
+
+
+        let filteredOrders = orders;
+        
+        if (!isAdminUser) {
+          // Only filter out cancelled orders for customers
+          const beforeFilter = filteredOrders.length;
+          filteredOrders = orders.filter(o => {
+            const status = o.order_status?.toLowerCase();
+
+            // Only filter out cancelled orders
+            if (status === 'cancelled') {
+              return false;
+            }
+
+            return true;
+          });
+
+        }
+
+        setPastOrders(filteredOrders.map(mapBackendOrderToPastOrder));
+
+      } catch (error) {
+        console.error(`[DEBUG FETCH] Error in fetchRelevantOrders:`, error);
+        setPastOrders([]);
       }
-      setPastOrders([]);
-    }
-  }, [tableNumber, toast]);
-  // --- END MODIFIED fetchRelevantOrders ---
+}, [sessionToken, tableNumber, toast]);
+
+
+    useEffect(() => {
+      if (!sessionToken && !hasAuthToken()) {
+        //console.log('[DEBUG SESSION EFFECT] No session token or auth, skipping fetch');
+        return;
+      }
+      
+      //console.log('[DEBUG SESSION EFFECT] Session or table changed, fetching orders...');
+      //console.log('[DEBUG SESSION EFFECT] sessionToken:', sessionToken ? 'present' : 'null');
+      //console.log('[DEBUG SESSION EFFECT] tableNumber:', tableNumber);
+      
+      // Fetch orders when session token or table becomes available
+      fetchRelevantOrders();
+    }, [sessionToken, tableNumber, fetchRelevantOrders]);
 
   // --- Socket Connection ---
+
   const connectSocket = useCallback(() => {
     if (socket || typeof window === 'undefined') {
-      console.log('[DEBUG] Socket already connected or SSR, skipping connect.');
+      //console.log('[DEBUG SOCKET] Socket already connected or SSR, skipping connect.');
       return;
     }
 
-    console.log('[DEBUG] Attempting socket connect...');
+    //console.log('[DEBUG SOCKET] Attempting socket connect...');
     const isAdminConnected = hasAuthToken();
+    
     const newSocket = io(SOCKET_URL, {
       auth: (cb) => {
         const token = localStorage.getItem('accessToken');
@@ -449,8 +515,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('[DEBUG] Socket connected:', newSocket.id, 'IsAdmin:', isAdminConnected);
+      //console.log('[DEBUG SOCKET] Socket connected:', newSocket.id, 'IsAdmin:', isAdminConnected);
+      
+      // Fetch orders on connect
       fetchRelevantOrders();
+      
       if (isAdminConnected) {
         fetchTables();
         fetchKitchenOrders();
@@ -458,46 +527,46 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('newOrder', (order: BackendOrder) => {
-      console.log('[DEBUG] Socket: Event "newOrder" received', order?.order_id);
+      //console.log('[DEBUG SOCKET] Event "newOrder" received', order?.order_id);
       toast({
         title: 'New Order!',
         description: `Table ${order?.table_id}`
       });
-      console.log('[DEBUG] newOrder: Calling fetchRelevantOrders...');
+      
       fetchRelevantOrders();
+      
       if (hasAuthToken()) {
-        console.log('[DEBUG] newOrder: Calling fetchKitchenOrders...');
         fetchKitchenOrders();
       }
     });
 
     newSocket.on('orderStatusUpdate', (data: { orderId: number; status: string; tableId: string; }) => {
-      console.log('[DEBUG] Socket: Event "orderStatusUpdate" received', data);
+      //console.log('[DEBUG SOCKET] Event "orderStatusUpdate" received', data);
       const friendlyStatus = data.status.charAt(0).toUpperCase() + data.status.slice(1);
       toast({
         title: 'Order Update',
         description: `Table ${data.tableId} is ${friendlyStatus}`
       });
-      console.log('[DEBUG] orderStatusUpdate: Calling fetchRelevantOrders...');
+      
       fetchRelevantOrders();
+      
       if (hasAuthToken()) {
-        console.log('[DEBUG] orderStatusUpdate: Calling fetchKitchenOrders...');
         fetchKitchenOrders();
       }
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('[DEBUG] Socket disconnected:', reason);
+      console.log('[DEBUG SOCKET] Socket disconnected:', reason);
     });
 
     newSocket.on('connect_error', (err) => {
-      console.error('[DEBUG] Socket connection error:', err.message);
+      console.error('[DEBUG SOCKET] Socket connection error:', err.message);
     });
 
     setSocket(newSocket);
-  }, [socket, toast, tableNumber, fetchTables, fetchKitchenOrders, fetchRelevantOrders]);
+  }, [socket, toast, fetchTables, fetchKitchenOrders, fetchRelevantOrders]);
 
-  // --- Table Status Calculation (Derived State) ---
+  // --- Table Status Calculation  ---
   const tableStatuses = useMemo(() => {
     const isAdminUser = hasAuthToken();
     if (!isAdminUser || !Array.isArray(backendTables)) {
@@ -510,8 +579,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const isOccupied = pastOrders.some(
         o => o.tableNumber === idStr &&
           o.paymentStatus === 'Pending' &&
-          o.status !== 'completed' &&
-          o.status !== 'cancelled'
+          o.status !== 'Completed' &&
+          o.status !== 'Cancelled'
       );
 
       return {
@@ -564,7 +633,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   // Backward compatibility wrapper for setTaxRate
   const setTaxRate = useCallback(async (newRate: number) => {
-      await updateSettings(newRate, discountRate); 
+      await updateSettings(newRate, discountRate);
   }, [updateSettings, discountRate]);
 
   const setMenuItems = useCallback((items: MenuItem[]) => {
@@ -638,7 +707,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const orderToRepeat = pastOrders.find(o => o.id === orderId);
     if (!orderToRepeat) return;
 
-    setIsCartLoading(true); 
+    setIsCartLoading(true);
     try {
         // 1. Fetch live menu
         const res = await fetch(`${API_BASE}/menu`);
@@ -649,7 +718,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (Array.isArray(rawData)) menuArray = rawData;
         else if (Array.isArray(rawData?.data)) menuArray = rawData.data;
         else if (Array.isArray(rawData?.items)) menuArray = rawData.items;
-        
+
         const itemsToAdd: CartItem[] = [];
 
         // 2. Match past items with live menu
@@ -709,77 +778,122 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [pastOrders, toast, router]);
 
   // --- Order API Functions ---
+  // Replace the placeOrder function in CartProvider
+
   const placeOrder = useCallback(async (
-    total: number,
-    customer: { name: string; phone: string; email: string; }
-  ): Promise<boolean> => {
-    if (!tableNumber) {
-      toast({
-        variant: "destructive",
-        title: "No Table Selected",
-        description: "Please scan a table QR code first."
-      });
-      return false;
+  total: number,
+  customer: { name: string; phone: string; email?: string }
+): Promise<boolean> => {
+  // Prevent double submission
+  if (isSubmittingRef.current) {
+    //console.log('[DEBUG PLACE ORDER] Ignoring duplicate request');
+    return false;
+  }
+  if (isCartLoading) {
+    //console.log('[DEBUG PLACE ORDER] Already processing, ignoring duplicate request');
+    return false;
+  }
+  
+  if (!tableNumber) {
+    toast({ variant: 'destructive', title: 'No Table Selected', description: 'Please scan a table QR code first.' });
+    return false;
+  }
+
+  //console.log('[DEBUG PLACE ORDER] Starting order placement...');
+  setIsCartLoading(true);
+
+  const hasActiveOrder = pastOrders.some(
+    o => o.tableNumber === tableNumber && 
+    o.status !== 'Completed' && 
+    o.status !== 'Cancelled'
+  );
+  const orderType = hasActiveOrder ? 'addon' : 'regular';
+
+  const orderPayload = {
+    tableId: parseInt(tableNumber, 10),
+    items: cart.map(item => ({
+      itemId: parseInt(item.id, 10),
+      quantity: item.quantity,
+      specialInstructions: item.specialInstructions || null
+    })),
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    orderType,
+  };
+
+  //console.log('[DEBUG PLACE ORDER] Payload:', orderPayload);
+  //console.log('[DEBUG PLACE ORDER] Current sessionToken:', sessionToken);
+
+  try {
+    const res = await fetch(`${API_BASE}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(orderPayload)
+    });
+
+    const data = await res.json().catch(() => null);
+    console.log('[DEBUG PLACE ORDER] Response:', data);
+
+    if (!res.ok) {
+      throw new Error(data?.message || `Order failed (${res.status})`);
     }
-    // Check if there are existing active orders for this table
-    const hasActiveOrder = pastOrders.some(o =>
-          o.tableNumber === tableNumber &&
-          o.status !== 'completed' &&
-          o.status !== 'cancelled'
-      );
-      // Define the variable here so orderPayload can use it
-      const orderType = hasActiveOrder ? 'addon' : 'regular';
 
-    const orderPayload = {
-      tableId: parseInt(tableNumber, 10),
-      items: cart.map(item => ({
-        itemId: parseInt(item.id, 10),
-        quantity: item.quantity,
-        specialInstructions: item.specialInstructions || null
-      })),
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      //customerEmail: customer.email,
-      orderType: orderType
-    };
+    // Extract session token
+    const token =
+      data?.data?.session_token ||
+      data?.session_token ||
+      data?.data?.sessionToken ||
+      data?.data?.order?.session_token ||
+      data?.sessionToken ||
+      null;
 
-    setIsCartLoading(true);
-    console.log('[DEBUG placeOrder] Sending payload:', orderPayload);
+    //console.log('[DEBUG PLACE ORDER] Extracted session_token:', token);
 
-    try {
-      const res = await fetch(`${API_BASE}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload)
-      });
-
-      //console.log('[DEBUG placeOrder] Response status:', res.status);
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({
-          message: `HTTP Error ${res.status}. Check backend logs.`
-        }));
-        throw new Error(err.message || 'Failed to place order. Please try again.');
+    if (token) {
+      setSessionToken(token);
+      try {
+        localStorage.setItem('session_token', token);
+        //console.log('[DEBUG PLACE ORDER] Saved session_token to localStorage');
+      } catch (e) {
+        //console.warn('[DEBUG PLACE ORDER] Could not write session_token to localStorage', e);
       }
-
-      clearCart();
-      toast({ title: hasActiveOrder ? "Add-on Placed!" : "Order Placed!" });
-
-      //console.log('[DEBUG placeOrder] Calling fetchRelevantOrders after success...');
-      await fetchRelevantOrders();
-      setIsCartLoading(false);
-      return true;
-    } catch (err) {
-      console.error('Failed to place order:', err);
-      toast({
-        variant: "destructive",
-        title: "Order Failed",
-        description: (err as Error).message
-      });
-      setIsCartLoading(false);
-      return false;
+    } else {
+      //console.warn('[DEBUG PLACE ORDER] No session_token found in response');
     }
-  }, [tableNumber, cart, clearCart, toast, fetchRelevantOrders, pastOrders]);
+
+    // Clear cart and show success
+    clearCart();
+    toast({ 
+      title: hasActiveOrder ? 'Add-on Placed!' : 'Order Placed!',
+      description: 'Your order has been sent to the kitchen.'
+    });
+    
+    // Save customer details
+    setCustomerDetails({ name: customer.name, phone: customer.phone });
+    writeToStorage('Five_petals_customer', customer);
+
+    // Refresh orders
+    console.log('[DEBUG PLACE ORDER] Fetching orders after successful placement...');
+    await fetchRelevantOrders();
+
+    return true;
+    
+  } catch (err) {
+    console.error('[DEBUG PLACE ORDER] Failed to place order:', err);
+    toast({ 
+      variant: 'destructive', 
+      title: 'Order Failed', 
+      description: (err as Error).message 
+    });
+    return false;
+    
+  } finally {
+    // Always reset loading state
+    isSubmittingRef.current = false;
+    setIsCartLoading(false);
+    //console.log('[DEBUG PLACE ORDER] Order placement complete');
+  }
+}, [tableNumber, cart, clearCart, toast, fetchRelevantOrders, pastOrders, isCartLoading, sessionToken]);
 
   // --- Admin/Kitchen Order Actions ---
   const updateKitchenOrderStatus = useCallback(async (
@@ -994,6 +1108,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast, fetchTables]);
 
+  const clearTableSession = useCallback(async (tableId: number) => {
+    if (!hasAuthToken()) return;
+    try {
+        const res = await fetch(`${API_BASE}/tables/${tableId}/clear`, {
+            method: 'POST',
+            headers: { ...authHeaders() }
+        });
+
+        if (!res.ok) throw new Error('Failed to clear table');
+
+        toast({ title: "Table Cleared", description: "Session expired and table is free." });
+        fetchTables();
+    } catch (e) { toast({ variant: 'destructive', title: "Failed", description: "Could not clear table." }); }
+}, [toast, fetchTables]);
+
   // --- Analytics Calculation (Local - admin only) ---
   const analytics = useMemo(() => {
     if (!hasAuthToken() || !Array.isArray(pastOrders)) {
@@ -1089,6 +1218,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         discountRate,
         updateSettings,
         setTaxRate,
+        customerDetails,
         menuItems,
         setMenuItems,
         analytics,
@@ -1098,6 +1228,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setTable,
         tableStatuses,
         createTable,
+        clearTableSession,
         analyticsPeriod,
         setAnalyticsPeriod,
         connectSocket,

@@ -9,7 +9,7 @@ import { BottomNav } from '@/components/layout/bottom-nav';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { sub } from 'date-fns';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, getTotalPrice, placeOrder, taxRate, isCartLoading, tableNumber, customerDetails } = useCart();
@@ -32,33 +33,34 @@ export default function CartPage() {
   // const [customerEmail, setCustomerEmail] = useState(''); // <-- COMMENTED OUT
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const submittingRef = useRef(false);
   const { toast } = useToast();
-  
+
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (isCheckoutOpen && customerDetails) {
+    if (customerDetails) {
         setCustomerName(customerDetails.name);
         setCustomerPhone(customerDetails.phone);
     }
-  }, [isCheckoutOpen, customerDetails]);
+  }, [customerDetails]);
 
   const subtotal = getTotalPrice();
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
+  const executeOrder = async (name: string, phone: string) => {
+    //setIsPlacingOrder(true);
+    const success = await placeOrder(total, { name, phone });
+    //setIsPlacingOrder(false);
+    return success;
+  };
+
   const handlePlaceOrder = async () => {
-    if (!customerName || !customerPhone /* || !customerEmail */) { // <-- MODIFIED CHECK
-        toast({
-            variant: "destructive",
-            title: "Missing Information",
-            description: "Please enter your name and phone number."
-        });
-        return;
-    }
-    
+
+
     /* --- COMMENTED OUT EMAIL VALIDATION ---
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerEmail)) {
@@ -75,16 +77,24 @@ export default function CartPage() {
         toast({ variant: "destructive", title: "Invalid Phone", description: "Please enter a valid 10-digit phone number." });
         return;
     }
-    
+    if (submittingRef.current || isPlacingOrder || isCartLoading) {
+      console.log('⛔ Already submitting, ignoring click');
+      return;
+    }
+    submittingRef.current = true;
     setIsPlacingOrder(true);
     
-    const success = await placeOrder(total, {
-        name: customerName,
-        phone: customerPhone,
-        // email: customerEmail // <-- COMMENTED OUT
-    });
+    let success = false;
     
-    setIsPlacingOrder(false);
+    try {
+
+        success = await executeOrder(customerName, customerPhone);
+    } catch (error) {
+        console.error("Error during order execution:", error);
+    } finally {
+        submittingRef.current = false;
+        setIsPlacingOrder(false);
+    }
 
     if (success) {
       setIsCheckoutOpen(false);
@@ -94,7 +104,7 @@ export default function CartPage() {
       router.push('/orders');
     }
   };
-  
+
   if (!isClient || isCartLoading) {
     return <div className="flex items-center justify-center h-screen bg-background"><p>Loading...</p></div>;
   }
