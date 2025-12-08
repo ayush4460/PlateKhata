@@ -21,7 +21,7 @@ import { PaymentModal } from '@/components/payment/payment-modal';
 interface jsPDFWithAutoTable extends jsPDF { autoTable: (options: UserOptions) => jsPDF; }
 
 // Grace period
-const RECEIPT_GRACE_PERIOD = 6 *60 * 60 * 1000;
+const RECEIPT_GRACE_PERIOD = 30 * 60 * 1000;
 
 export default function OrdersPage() {
   const { pastOrders, isCartLoading, tableNumber } = useCart();
@@ -153,7 +153,7 @@ const handleDownloadCombinedReceipt = () => {
   doc.setFontSize(32);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(236, 72, 153); // Pink
-  doc.text('MunchMate', pageWidth / 2, 25, { align: 'center' });
+  doc.text('Axios', pageWidth / 2, 25, { align: 'center' });
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'italic');
@@ -164,7 +164,7 @@ const handleDownloadCombinedReceipt = () => {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(115, 115, 115);
-  doc.text('Phone: +91-XXXX-XXXXXX | Email: hello@munchmate.com', pageWidth / 2, 43, { align: 'center' });
+  doc.text('Phone: +91-XXXX-XXXXXX | Email: hello@axios.com', pageWidth / 2, 43, { align: 'center' });
 
   // Receipt title
   doc.setFontSize(18);
@@ -204,14 +204,14 @@ const handleDownloadCombinedReceipt = () => {
   doc.setTextColor(64, 64, 64);
   doc.text(`Invoice: ${firstOrder.orderNumber || firstOrder.id.slice(-6)}`, pageWidth / 2 + 5, 88);
   doc.text(`Date: ${new Date().toLocaleDateString('en-IN', { 
-    day: '2-digit', 
-    month: 'short', 
-    year: 'numeric' 
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
   })}`, pageWidth / 2 + 5, 93);
   doc.text(`Time: ${new Date().toLocaleTimeString('en-IN', { 
-    hour: '2-digit', 
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   })}`, pageWidth / 2 + 5, 98);
 
   // Consolidate Items
@@ -281,7 +281,7 @@ const handleDownloadCombinedReceipt = () => {
   // Summary box with gradient effect
   const summaryBoxY = finalY;
   const summaryBoxHeight = sessionTotals.discount > 0 ? 50 : 43;
-  
+
   // Gradient background (cream to light pink)
   doc.setFillColor(254, 252, 232); // Cream
   doc.roundedRect(pageWidth - 95, summaryBoxY, 81, summaryBoxHeight, 3, 3, 'F');
@@ -293,28 +293,29 @@ const handleDownloadCombinedReceipt = () => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-
   let yPos = summaryBoxY + 8;
-  doc.text('Subtotal:', pageWidth - 90, yPos);
-  doc.text(formatCurrency(sessionTotals.subtotal), pageWidth - 18, yPos, { align: 'right' });
 
-  yPos += 7;
-  doc.text('Tax:', pageWidth - 90, yPos);
-  doc.text(formatCurrency(sessionTotals.tax), pageWidth - 18, yPos, { align: 'right' });
+  if (sessionTotals.discount > 0 || sessionTotals.tax < 0) {
 
-  if (sessionTotals.discount > 0) {
+    doc.text('Subtotal:', pageWidth - 90, yPos);
+    doc.text(formatCurrency(sessionTotals.subtotal), pageWidth - 18, yPos, { align: 'right' });
+
+    yPos += 7;
+    doc.text('Tax:', pageWidth - 90, yPos);
+    doc.text(formatCurrency(sessionTotals.tax), pageWidth - 18, yPos, { align: 'right' });
+
     yPos += 7;
     doc.setTextColor(220, 38, 38); // Red for discount
     doc.text('Discount:', pageWidth - 90, yPos);
     doc.text(`-${formatCurrency(sessionTotals.discount)}`, pageWidth - 18, yPos, { align: 'right' });
     doc.setTextColor(80, 80, 80);
-  }
 
-  // Decorative line
-  yPos += 9;
-  doc.setDrawColor(134, 239, 172); // Green
-  doc.setLineWidth(1.5);
-  doc.line(pageWidth - 93, yPos - 2, pageWidth - 16, yPos - 2);
+    // Decorative line
+    yPos += 9;
+    doc.setDrawColor(134, 239, 172); // Green
+    doc.setLineWidth(1.5);
+    doc.line(pageWidth - 93, yPos - 2, pageWidth - 16, yPos - 2);
+  }
 
   // Grand Total with emphasis
   yPos += 6;
@@ -331,7 +332,7 @@ const handleDownloadCombinedReceipt = () => {
     const badgeY = yPos + 10;
     doc.setFillColor(134, 239, 172); // Light green
     doc.roundedRect(pageWidth - 75, badgeY, 61, 9, 2, 2, 'F');
-    
+
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(22, 101, 52); // Dark green
@@ -348,16 +349,16 @@ const handleDownloadCombinedReceipt = () => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(236, 72, 153); // Pink
     doc.text(
-      `${allDisplayedOrders.length} orders combined`, 
-      pageWidth - 54.5, 
-      orderCountY + 4.5, 
+      `${allDisplayedOrders.length} orders combined`,
+      pageWidth - 54.5,
+      orderCountY + 4.5,
       { align: 'center' }
     );
   }
 
   // Footer section
   const footerY = pageHeight - 35;
-  
+
   // Decorative footer wave (using rectangles)
   doc.setFillColor(254, 252, 232); // Cream
   doc.rect(0, footerY - 10, pageWidth, 10, 'F');
@@ -379,7 +380,7 @@ const handleDownloadCombinedReceipt = () => {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(115, 115, 115);
-  doc.text('Follow us: @munchmate | www.munchmate.com', pageWidth / 2, footerY + 25, { align: 'center' });
+  doc.text('Follow us: @Axios | www.Axios.com', pageWidth / 2, footerY + 25, { align: 'center' });
 
   // Small print
   doc.setFontSize(7);
@@ -388,7 +389,7 @@ const handleDownloadCombinedReceipt = () => {
 
   // Save with proper filename
   const timestamp = new Date().toISOString().slice(0, 10);
-  const filename = `MunchMate-Invoice-Table${tableNumber}-${timestamp}.pdf`;
+  const filename = `Axios-Invoice-Table${tableNumber}-${timestamp}.pdf`;
   doc.save(filename);
 };
 
@@ -479,22 +480,22 @@ const handleDownloadCombinedReceipt = () => {
             {/* GRAND TOTAL & RECEIPT */}
             <Card className="bg-muted/30 border-2 border-primary/20">
               <CardContent className="p-4 space-y-2">
-                <div className="flex justify-between text-sm text-muted-foreground"><span>Subtotal</span><span>₹{sessionTotals.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-sm text-muted-foreground"><span>Tax</span><span>₹{sessionTotals.tax.toFixed(2)}</span></div>
+                {sessionTotals.tax > 0 || sessionTotals.discount > 0 && (<div className="flex justify-between text-sm text-muted-foreground"><span>Subtotal</span><span>₹{sessionTotals.subtotal.toFixed(2)}</span></div>)}
+                {sessionTotals.tax > 0 && (<div className="flex justify-between text-sm text-muted-foreground"><span>Tax</span><span>₹{sessionTotals.tax.toFixed(2)}</span></div>)}
                 {sessionTotals.discount > 0 && (
                   <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-₹{sessionTotals.discount.toFixed(2)}</span></div>
                 )}
-                <Separator />
+
                 <div className="flex justify-between items-center text-xl font-bold pt-2">
                   <span>Total</span>
                   <span>₹{sessionTotals.total.toFixed(2)}</span>
                 </div>
-                
+
                 {/* RECEIPT BUTTON - Show if any completed orders exist (within grace period) */}
                 {hasCompletedOrders && (
                   <div className="space-y-2 pt-2">
                     <Button 
-                      className="w-full gap-2" 
+                      className="w-full gap-2"
                       onClick={handleDownloadCombinedReceipt}
                       variant="default"
                     >

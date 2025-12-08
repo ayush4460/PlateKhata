@@ -1,4 +1,4 @@
-# MunchMate - Restaurant QR Ordering System Frontend
+# Axios - Restaurant QR Ordering System Frontend
 
 A modern, responsive web application for restaurant customers to browse menus, place orders, and manage payments using QR codes. Built with **Next.js 15**, **React 18**, **TypeScript**, and **Tailwind CSS**.
 

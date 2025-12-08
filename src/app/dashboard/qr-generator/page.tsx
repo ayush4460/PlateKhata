@@ -1,25 +1,24 @@
 // src/app/dashboard/qr-generator/page.tsx
-'use client'; // <-- FIX #1: Add this directive
+'use client';
 
 import { useState, useEffect } from 'react';
-import QRCode from 'qrcode.react'; // Or 'qrcode.react' if you installed that
+import QRCode from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/use-cart';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, UtensilsCrossed } from 'lucide-react';
+import { PlusCircle, UtensilsCrossed, Trash2 } from 'lucide-react';
 
 export default function QrGeneratorPage() {
   const [baseUrl, setBaseUrl] = useState('');
-  const [restaurantName, setRestaurantName] = useState('MunchMate');
+  const [restaurantName, setRestaurantName] = useState('Axios');
   const [tagline, setTagline] = useState('Scan, Order, Enjoy!');
   const [newTableNumber, setNewTableNumber] = useState('');
-  const [newTableCapacity, setNewTableCapacity] = useState(''); // <-- FIX #2: Add capacity state
-  
-  // --- FIX #3: Use 'createTable' from the hook ---
-  const { tableStatuses, createTable } = useCart(); 
+  const [newTableCapacity, setNewTableCapacity] = useState('');
+
+  const { tableStatuses, createTable, deleteTable } = useCart();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -41,7 +40,7 @@ export default function QrGeneratorPage() {
     });
   };
 
-  // --- FIX #4: Update handler to use createTable and capacity ---
+
   const handleAddTable = async () => {
     const tableNumStr = newTableNumber.trim();
     const capacityNum = parseInt(newTableCapacity, 10);
@@ -60,16 +59,34 @@ export default function QrGeneratorPage() {
       return;
     }
 
-    // Call the createTable function from the hook
+
     const success = await createTable(tableNumStr, capacityNum);
 
     if (success) {
-      // Toast is handled by the hook on success/failure
       setNewTableNumber('');
       setNewTableCapacity('');
     }
   }
-  // --- END FIX ---
+
+  const handleDeleteTable = async (id: number) => {
+    const confirmed = window.confirm('Delete this table, its QR code, and all active orders?');
+    if (!confirmed) return;
+
+    const success = await deleteTable(id);
+    if (!success) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to delete table',
+        description: 'Something went wrong while deleting the table.',
+      });
+    } else {
+      toast({
+        title: 'Table deleted',
+        description: 'The table, QR code, and active orders were removed.',
+      });
+    }
+  };
+
 
   const handlePrint = () => {
     window.print();
@@ -120,12 +137,12 @@ export default function QrGeneratorPage() {
                         <Label htmlFor="new-table">Table Number</Label>
                         <Input id="new-table" type="text" placeholder="e.g., A5 or 12" value={newTableNumber} onChange={(e) => setNewTableNumber(e.target.value)} />
                     </div>
-                    {/* --- FIX #5: Add Capacity Input Field --- */}
+
                     <div className="space-y-2">
                         <Label htmlFor="new-capacity">Capacity</Label>
                         <Input id="new-capacity" type="number" placeholder="e.g., 4" value={newTableCapacity} onChange={(e) => setNewTableCapacity(e.target.value)} min="1" max="20" />
                     </div>
-                    {/* --- END FIX --- */}
+
                     <div className="flex justify-end">
                         <Button onClick={handleAddTable}><PlusCircle className="mr-2 h-4 w-4" /> Add Table</Button>
                     </div>
@@ -133,7 +150,7 @@ export default function QrGeneratorPage() {
             </Card>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 print:grid-cols-3 print:gap-4" id="qr-code-grid">
         {tableStatuses.sort((a, b) => {
             const numA = parseInt(a.tableNumber); const numB = parseInt(b.tableNumber);
@@ -141,59 +158,76 @@ export default function QrGeneratorPage() {
             return a.tableNumber.localeCompare(b.tableNumber);
         }).map((table) => (
           <Card key={table.id} className="text-center break-inside-avoid print:border-2 print:shadow-none">
-            <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
-                <div className='text-center'>
+              <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
+                <div className="flex w-full items-start justify-between print:hidden">
+                  <div className="text-left">
                     <h2 className="text-xl font-bold">{restaurantName}</h2>
                     <p className="text-sm text-muted-foreground">{tagline}</p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleDeleteTable(table.id)}
+                    aria-label="Delete table"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
+
+                <div className="text-center hidden print:block">
+                  <h2 className="text-xl font-bold">{restaurantName}</h2>
+                  <p className="text-sm text-muted-foreground">{tagline}</p>
+                </div>
+
                 <div className="p-4 bg-white rounded-lg border">
-                    <QRCode
-                        value={`${baseUrl}/?table=${table.tableNumber}`}
-                        size={150}
-                        level="H"
-                        includeMargin={true}
-                        renderAs="canvas"
-                        className="qr-canvas"
-                    />
+                  <QRCode
+                    value={`${baseUrl}/?table=${table.tableNumber}`}
+                    size={150}
+                    level="H"
+                    includeMargin={true}
+                    renderAs="canvas"
+                    className="qr-canvas"
+                  />
                 </div>
                 <div className="text-center">
-                    <p className="text-2xl font-bold">Table {table.tableNumber}</p>
-                    <p className="text-xs text-muted-foreground break-all print:hidden">
-                        {`${baseUrl}/?table=${table.tableNumber}`}
-                    </p>
+                  <p className="text-2xl font-bold">Table {table.tableNumber}</p>
+                  <p className="text-xs text-muted-foreground break-all print:hidden">
+                    {`${baseUrl}/?table=${table.tableNumber}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <UtensilsCrossed className="h-3 w-3" />
-                    <span>Powered by MunchMate</span>
+                  <UtensilsCrossed className="h-3 w-3" />
+                  <span>Powered by Axios</span>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
         ))}
       </div>
-       <style jsx global>{`
-         @media print {
-           body * {
-             visibility: hidden;
-           }
-           #qr-code-grid, #qr-code-grid * {
-             visibility: visible;
-           }
-           #qr-code-grid {
-             position: absolute;
-             left: 0;
-             top: 0;
-             width: 100%;
-             gap: 1rem;
-           }
-           .qr-canvas {
-             visibility: visible !important;
-           }
-         }
-         @page {
-           size: A4;
-           margin: 1cm;
-         }
-       `}</style>
+        <style jsx global>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            #qr-code-grid, #qr-code-grid * {
+              visibility: visible;
+            }
+            #qr-code-grid {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              gap: 1rem;
+            }
+            .qr-canvas {
+              visibility: visible !important;
+            }
+          }
+          @page {
+            size: A4;
+            margin: 1cm;
+          }
+        `}</style>
     </div>
   );
 }

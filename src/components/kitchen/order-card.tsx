@@ -8,7 +8,10 @@ import { cn } from '@/lib/utils';
 type Order = {
   id: string;
   table: string;
-  items: { name: string; quantity: number }[];
+  items: {name: string;
+          quantity: number;
+          specialInstructions?: string | null;
+        }[];
   time: string;
   orderType?: 'regular' | 'addon';
 };
@@ -47,14 +50,26 @@ export function OrderCard({ order, onMoveOrder, actionText }: OrderCardProps) {
 
       <CardContent>
         <Separator className="my-2" />
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {order.items.map((item, index) => (
-            <li key={index} className="flex justify-between">
-              <span className="flex-1 pr-2 text-sm">{item.name}</span>
-              <span className="font-bold text-sm">x{item.quantity}</span>
+            <li key={index} className="border-b border-muted pb-2 last:border-b-0">
+              <div className="flex justify-between">
+                <span className="flex-1 pr-2 text-sm font-medium">
+                  {item.name}
+                </span>
+                <span className="font-bold text-sm">x{item.quantity}</span>
+              </div>
+
+              {item.specialInstructions &&
+                item.specialInstructions.trim().length > 0 && (
+                  <p className="mt-1 text-sm italic text-amber-400">
+                    🛑 {item.specialInstructions}
+                  </p>
+                )}
             </li>
           ))}
         </ul>
+
       </CardContent>
 
       {onMoveOrder && actionText && (

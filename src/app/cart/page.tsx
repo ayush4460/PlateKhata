@@ -23,9 +23,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { sub } from 'date-fns';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, getTotalPrice, placeOrder, taxRate, isCartLoading, tableNumber, customerDetails } = useCart();
+  const { cart, updateQuantity, updateItemInstructions, removeFromCart, getTotalPrice, placeOrder, taxRate, isCartLoading, tableNumber, customerDetails } = useCart();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [customerName, setCustomerName] = useState('');
@@ -64,7 +65,7 @@ export default function CartPage() {
     /* --- COMMENTED OUT EMAIL VALIDATION ---
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerEmail)) {
-         toast({
+        toast({
             variant: "destructive",
             title: "Invalid Email",
             description: "Please enter a valid email address."
@@ -83,9 +84,9 @@ export default function CartPage() {
     }
     submittingRef.current = true;
     setIsPlacingOrder(true);
-    
+
     let success = false;
-    
+
     try {
 
         success = await executeOrder(customerName, customerPhone);
@@ -134,9 +135,21 @@ export default function CartPage() {
                     <h3 className="font-semibold">{item.name}</h3>
                     <p className="text-sm text-muted-foreground">₹{item.price.toFixed(2)}</p>
                     <div className="flex items-center gap-2 mt-2">
-                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="h-4 w-4" /></Button>
-                       <span className="font-bold w-4 text-center">{item.quantity}</span>
-                       <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="h-4 w-4" /></Button>
+                      <span className="font-bold w-4 text-center">{item.quantity}</span>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="h-4 w-4" /></Button>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-xs text-muted-foreground mb-1 block">
+                        Special Instructions (Optional)
+                      </label>
+                      <Textarea
+                        placeholder="e.g., No onions, extra spicy, well done"
+                        value={item.specialInstructions || ''}
+                        onChange={(e) => updateItemInstructions(item.id, e.target.value)}
+                        className="text-sm resize-none h-16"
+                        rows={2}
+                      />
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -153,8 +166,8 @@ export default function CartPage() {
             <div>
                 <h2 className="text-lg font-semibold mb-4">Bill Details</h2>
                 <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({(taxRate * 100).toFixed(0)}%)</span><span>₹{tax.toFixed(2)}</span></div>
+                    {taxRate > 0 && (<><div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({(taxRate * 100).toFixed(0)}%)</span><span>₹{tax.toFixed(2)}</span></div></>)}
                     <Separator />
                     <div className="flex justify-between font-bold text-lg"><span>Total</span><span>₹{total.toFixed(2)}</span></div>
                 </div>

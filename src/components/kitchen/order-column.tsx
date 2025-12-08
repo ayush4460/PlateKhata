@@ -4,7 +4,7 @@ import { OrderCard } from './order-card';
 type Order = {
   id: string;
   table: string;
-  items: { name: string; quantity: number }[];
+  items: { name: string; quantity: number; specialInstructions?: string | null; }[];
   time: string;
 };
 

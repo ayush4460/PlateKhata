@@ -51,6 +51,7 @@ export default function MenuEditorPage() {
   const {
     taxRate,
     discountRate,
+    upiId,
     updateSettings,
     menuItems: initialMenuItemsFromHook,
     setMenuItems: setGlobalMenuItems
@@ -60,6 +61,7 @@ export default function MenuEditorPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [localTaxRate, setLocalTaxRate] = useState('');
   const [localDiscountRate, setLocalDiscountRate] = useState('');
+  const [localUpiId, setLocalUpiId] = useState('');
   const [isEditing, setIsEditing] = useState<MenuItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editedItem, setEditedItem] = useState<Partial<MenuItem> & { imageFile?: File | null }>({});
@@ -75,9 +77,10 @@ export default function MenuEditorPage() {
 
   // --- MODIFIED: Sync both Tax and Discount ---
   useEffect(() => {
-    setLocalTaxRate((taxRate * 100).toFixed(2));
-    setLocalDiscountRate((discountRate * 100).toFixed(2));
-  }, [taxRate, discountRate]);
+    setLocalTaxRate((taxRate * 100).toFixed(0));
+    setLocalDiscountRate((discountRate * 100).toFixed(0));
+    setLocalUpiId(upiId || '');
+  }, [taxRate, discountRate, upiId]);
 
   // Fetch menu items from backend
   useEffect(() => {
@@ -126,6 +129,7 @@ export default function MenuEditorPage() {
   const handleSaveSettings = async () => {
     const newTaxPercent = parseFloat(localTaxRate);
     const newDiscountPercent = parseFloat(localDiscountRate);
+    const trimmedUpi = localUpiId.trim();
 
     if (isNaN(newTaxPercent) || newTaxPercent < 0 || newTaxPercent > 50) {
       toast({ variant: 'destructive', title: 'Invalid Tax Rate', description: 'Enter % between 0-50.' }); return;
@@ -133,12 +137,25 @@ export default function MenuEditorPage() {
     if (isNaN(newDiscountPercent) || newDiscountPercent < 0 || newDiscountPercent > 100) {
       toast({ variant: 'destructive', title: 'Invalid Discount', description: 'Enter % between 0-100.' }); return;
     }
+    if (!trimmedUpi) {
+      toast({ variant: 'destructive', title: 'UPI ID required', description: 'Please enter a UPI ID like name@bank.' });
+      return;
+    }
+    const upiRegex = /^[A-Za-z0-9.\-_]+@[A-Za-z0-9.\-_]+$/;
+    if (!upiRegex.test(trimmedUpi)) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid UPI ID',
+        description: 'Use a valid format like axios@bank or 2523553@bank.'
+      });
+      return;
+    }
 
     try {
-        await updateSettings(newTaxPercent / 100, newDiscountPercent / 100);
+        await updateSettings(newTaxPercent / 100, newDiscountPercent / 100, trimmedUpi);
         toast({
             title: 'Settings Saved',
-            description: `Tax: ${newTaxPercent.toFixed(2)}%, Discount: ${newDiscountPercent.toFixed(2)}%`
+            description: `Tax: ${newTaxPercent.toFixed(2)}%, Discount: ${newDiscountPercent.toFixed(2)}%, UPI: ${trimmedUpi}`
         });
     } catch (error) { /* Error handled in hook */ }
   };
@@ -317,7 +334,7 @@ export default function MenuEditorPage() {
             </div>
           </div>
            {/* Available Toggle */}
-           <div className="grid grid-cols-4 items-center gap-4">
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isAvailable" className="text-right">Available</Label>
             <div className="col-span-3 flex items-center">
               <Switch id="isAvailable" checked={editedItem.isAvailable ?? true} onCheckedChange={(v) => setEditedItem({ ...editedItem, isAvailable: !!v })} />
@@ -351,12 +368,12 @@ export default function MenuEditorPage() {
   // --- Main return JSX ---
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8">
-      {renderEditDialog()} 
+      {renderEditDialog()}
 
       <Card>
           <CardHeader>
               <CardTitle>Payment Settings</CardTitle>
-              <CardDescription>Configure Tax and Global Discount.</CardDescription>
+              <CardDescription>Configure Tax, Discount and Upi-Id.</CardDescription>
           </CardHeader>
           <CardContent>
               <div className="grid gap-4 max-w-sm">
@@ -368,11 +385,21 @@ export default function MenuEditorPage() {
                       <Label htmlFor="discount-rate">Discount Rate (%)</Label>
                       <Input id="discount-rate" type="number" step="0.01" value={localDiscountRate} onChange={(e) => setLocalDiscountRate(e.target.value)} placeholder="e.g. 5.00"/>
                   </div>
+                  <div className="grid gap-2">
+                      <Label htmlFor="upi-id">UPI ID</Label>
+                      <Input
+                        id="upi-id"
+                        type="text"
+                        value={localUpiId}
+                        onChange={(e) => setLocalUpiId(e.target.value)}
+                        placeholder="e.g. axios@paytm, 2523553@icici"
+                      />
+                  </div>
                   <Button onClick={handleSaveSettings}>Save Settings</Button>
               </div>
           </CardContent>
       </Card>
-      {/* --- END MODIFICATION --- */}
+
 
       <Card>
           <CardHeader className="flex flex-row items-center justify-between">

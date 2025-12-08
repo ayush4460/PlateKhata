@@ -1,7 +1,7 @@
 // src/components/payment/payment-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,16 +17,30 @@ interface PaymentModalProps {
 }
 
 export function PaymentModal({ isOpen, onClose, orderId, amount }: PaymentModalProps) {
-    const { requestPayment } = useCart();
+    const { requestPayment, upiId } = useCart();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // --- UPI CONFIG ---
-    const MERCHANT_UPI = "njat7249-1@oksbi";
-    const MERCHANT_NAME = "MunchMate";
-    // --------------------------
+    const MERCHANT_NAME = "Axios";
+
 
     // Generate UPI String
-    const upiString = `upi://pay?pa=${MERCHANT_UPI}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount.toFixed(2)}&cu=INR&tn=Order_${orderId}`;
+    const { canUseUpi, upiString } = useMemo(() => {
+    const trimmed = (upiId || '').trim();
+    if (!trimmed) {
+        return { canUseUpi: false, upiString: '' };
+    }
+
+    const encodedPa = encodeURIComponent(trimmed);
+    const encodedPn = encodeURIComponent(MERCHANT_NAME);
+    const encodedTn = encodeURIComponent(`Order_${orderId}`);
+
+    const str = `upi://pay?pa=${encodedPa}&pn=${encodedPn}&am=${amount.toFixed(
+        2
+    )}&cu=INR&tn=${encodedTn}`;
+
+    return { canUseUpi: true, upiString: str };
+    }, [upiId, amount, orderId]);
 
     const handleCashRequest = async () => {
         setIsSubmitting(true);
@@ -36,6 +50,7 @@ export function PaymentModal({ isOpen, onClose, orderId, amount }: PaymentModalP
     };
 
     const handleUPIRequest = async () => {
+        if (!canUseUpi) return;
         setIsSubmitting(true);
         await requestPayment(orderId, 'UPI');
         setIsSubmitting(false);
@@ -58,26 +73,49 @@ export function PaymentModal({ isOpen, onClose, orderId, amount }: PaymentModalP
 
                     {/* UPI TAB */}
                     <TabsContent value="upi" className="space-y-4 py-4">
-                        <div className="flex flex-col items-center justify-center space-y-4">
+                        {canUseUpi ? (
+                        <>
+                            <div className="flex flex-col items-center justify-center space-y-4">
                             <div className="p-4 bg-white rounded-xl border shadow-sm">
                                 <QRCodeCanvas value={upiString} size={200} level="H" />
                             </div>
-                            <p className="text-xs text-muted-foreground text-center">Scan with GPay, PhonePe, Paytm, etc.</p>
+                            <p className="text-xs text-muted-foreground text-center">
+                                Scan with GPay, PhonePe, Paytm, etc.
+                            </p>
 
                             <div className="w-full relative">
-                                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                                <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or on Mobile</span></div>
+                                <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">
+                                    Or on Mobile
+                                </span>
+                                </div>
                             </div>
 
                             <Button className="w-full gap-2" asChild>
                                 <a href={upiString}>
-                                    <Smartphone className="h-4 w-4" /> Open UPI App
+                                <Smartphone className="h-4 w-4" /> Open UPI App
                                 </a>
                             </Button>
-                        </div>
-                        <Button onClick={handleUPIRequest} disabled={isSubmitting} className="w-full mt-4" variant="secondary">
+                            </div>
+                            <Button
+                            onClick={handleUPIRequest}
+                            disabled={isSubmitting}
+                            className="w-full mt-4"
+                            variant="secondary"
+                            >
                             Payment completed
-                        </Button>
+                            </Button>
+                        </>
+                        ) : (
+                        <div className="space-y-4 py-6 text-center">
+                            <p className="text-sm text-muted-foreground">
+                            UPI payment is not configured yet. Please contact the staff or pay by cash.
+                            </p>
+                        </div>
+                        )}
                     </TabsContent>
 
                     {/* CASH TAB */}

@@ -94,7 +94,7 @@ export default function DashboardLayout({
         <SidebarHeader>
           <div className="flex items-center gap-2 font-semibold text-lg p-2">
             <UtensilsCrossed className="h-6 w-6 text-primary" />
-            <span className="font-headline">MunchMate</span>
+            <span className="font-headline">Axios</span>
           </div>
         </SidebarHeader>
         <SidebarContent>

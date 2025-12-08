@@ -39,6 +39,7 @@ import {
 import { io, Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
 import { QRCodeCanvas } from 'qrcode.react';
+import { write } from 'fs';
 
 // --- API & Socket Configuration ---
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
@@ -62,6 +63,7 @@ interface CartContextType {
   addToCart: (item: MenuItem) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
+  updateItemInstructions: (itemId: string, instructions: string) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
   placeOrder: (
@@ -77,7 +79,8 @@ interface CartContextType {
   cancelOrder: (orderId: string) => void;
   taxRate: number;
   discountRate: number;
-  updateSettings: (tax: number, discount: number) => Promise<void>;
+  upiId: string;
+  updateSettings: (tax: number, discount: number, upiId: string) => Promise<void>;
   menuItems: MenuItem[];
   setMenuItems: (items: MenuItem[]) => void;
   analytics: AnalyticsData;
@@ -88,6 +91,7 @@ interface CartContextType {
   setTable: (table: string) => void;
   tableStatuses: TableStatus[];
   createTable: (tableNumber: string, capacity: number) => Promise<boolean>;
+  deleteTable: (tableId: number) => Promise<boolean>;
   clearTableSession: (tableId: number) => Promise<void>;
   analyticsPeriod: AnalyticsPeriod;
   setAnalyticsPeriod: (period: AnalyticsPeriod) => void;
@@ -204,8 +208,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     'in-progress': [],
     completed: []
   });
-  const [taxRate, setTaxRateState] = useState(0.08);
+  const [taxRate, setTaxRateState] = useState(0.00);
   const [discountRate, setDiscountRate] = useState(0.00);
+  const [upiId, setUpiId] = useState('');
   const router = useRouter();
   const [menuItems, setMenuItemsState] = useState<MenuItem[]>([]);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<AnalyticsPeriod>('weekly');
@@ -215,6 +220,35 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [customerDetails, setCustomerDetails] = useState<{ name: string; phone: string; } | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+
+
+  const fetchSettings = useCallback(async () => {
+  try {
+    const res = await fetch(`${API_BASE}/settings/public`);
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    const data = await res.json();
+
+
+    const payload = data?.data ?? data;
+    if (payload) {
+      if (typeof payload.taxRate === 'number') {
+        setTaxRateState(payload.taxRate);
+        writeToStorage('taxRate', payload.taxRate);
+      }
+      if (typeof payload.discountRate === 'number') {
+        setDiscountRate(payload.discountRate);
+        writeToStorage('discountRate', payload.discountRate);
+      }
+      if (typeof payload.upiId === 'string') {
+        setUpiId(payload.upiId);
+        writeToStorage('upiId', payload.upiId);
+      }
+    }
+    } catch (err) {
+      console.error('[DEBUG SETTINGS] Failed to fetch public settings:', err);
+    }
+  }, []);
+
 
   // --- Initial Data Loading Effect ---
   useEffect(() => {
@@ -252,11 +286,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (hasAuthToken()) {
 
       const storedMenuItems = safeJsonParse<MenuItem[]>(localStorage.getItem('menuItems')) ?? [];
-      const storedTaxRate = safeJsonParse<number>(localStorage.getItem('taxRate')) ?? 0.08;
+      const storedTaxRate = safeJsonParse<number>(localStorage.getItem('taxRate')) ?? 0.00;
       const storedDiscountRate = safeJsonParse<number>(localStorage.getItem('discountRate')) ?? 0.00;
       setMenuItemsState(storedMenuItems);
       setTaxRateState(storedTaxRate);
       setDiscountRate(storedDiscountRate);
+    }
+
+    const storedUpiId = safeJsonParse<string>(localStorage.getItem('upiId'));
+    if (storedUpiId) {
+      setUpiId(storedUpiId);
     }
 
     // Initialize empty orders
@@ -265,7 +304,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     // Connect socket
     console.log('[DEBUG INIT] Connecting socket...');
     connectSocket();
-
+    fetchSettings();
     setIsCartLoading(false);
 
   }, []);
@@ -573,7 +612,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
 
-    const derived = backendTables.map(t => {
+    const derived = backendTables
+    .filter(t => t.is_available !== false)
+    .map(t => {
       const idStr = String(t.table_id || t.id);
       const numStr = t.table_number || idStr;
       const isOccupied = pastOrders.some(
@@ -603,21 +644,23 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     fetchRelevantOrders();
   }, [fetchRelevantOrders]);
 
-  const updateSettings = useCallback(async (newTax: number, newDiscount: number) => {
+  const updateSettings = useCallback(async (newTax: number, newDiscount: number, newUpiId: string) => {
     if (!hasAuthToken()) return;
     // Update local state
     setTaxRateState(newTax);
     setDiscountRate(newDiscount);
+    setUpiId(newUpiId);
     writeToStorage('taxRate', newTax);
     writeToStorage('discountRate', newDiscount);
+    writeToStorage('upiId', newUpiId);
 
     try {
-      console.log(`[DEBUG] Saving settings: Tax=${newTax}, Discount=${newDiscount}`);
+      console.log(`[DEBUG] Saving settings: Tax=${newTax}, Discount=${newDiscount}, UPI=${newUpiId}`);
       // Call the new unified settings endpoint
       const res = await fetch(`${API_BASE}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ taxRate: newTax, discountRate: newDiscount })
+        body: JSON.stringify({ taxRate: newTax, discountRate: newDiscount, upiId: newUpiId })
       });
 
       if (!res.ok) {
@@ -633,8 +676,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   // Backward compatibility wrapper for setTaxRate
   const setTaxRate = useCallback(async (newRate: number) => {
-      await updateSettings(newRate, discountRate);
-  }, [updateSettings, discountRate]);
+      await updateSettings(newRate, discountRate, upiId);
+  }, [updateSettings, discountRate, upiId]);
 
   const setMenuItems = useCallback((items: MenuItem[]) => {
     if (!hasAuthToken()) return;
@@ -691,6 +734,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       });
     }
   }, [removeFromCart]);
+
+  const updateItemInstructions = useCallback((itemId: string, instructions: string) => {
+    setCart((prev) => {
+      const updated = prev.map((i) =>
+        i.id === itemId ? { ...i, specialInstructions: instructions } : i
+      );
+      writeToStorage('cart', updated);
+      return updated;
+    });
+  }, []);
 
   const clearCart = useCallback(() => {
     setCart([]);
@@ -784,7 +837,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   total: number,
   customer: { name: string; phone: string; email?: string }
 ): Promise<boolean> => {
-  // Prevent double submission
+
   if (isSubmittingRef.current) {
     //console.log('[DEBUG PLACE ORDER] Ignoring duplicate request');
     return false;
@@ -799,7 +852,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     return false;
   }
 
-  //console.log('[DEBUG PLACE ORDER] Starting order placement...');
+
   setIsCartLoading(true);
 
   const hasActiveOrder = pastOrders.some(
@@ -1108,6 +1161,45 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast, fetchTables]);
 
+  const deleteTable = useCallback(async (tableId: number): Promise<boolean> => {
+      if (!hasAuthToken()) {
+        toast({ variant: 'destructive', title: 'Unauthorized' });
+        return false;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/tables/${tableId}`, {
+          method: 'DELETE',
+          headers: {
+            ...authHeaders(),
+          },
+        });
+
+        console.log('[DEBUG] Delete table response status:', res.status);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error('[DEBUG] Delete table error:', err);
+          throw new Error((err as any).message || 'Failed to delete table');
+        }
+
+        await fetchTables();
+        toast({
+          title: 'Table Deleted',
+          description: 'Table, QR code, and active orders were removed.',
+        });
+        return true;
+      } catch (err) {
+        console.error('[DEBUG] Failed to delete table:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Delete Failed',
+          description: (err as Error).message,
+        });
+        return false;
+      }
+  }, [toast, fetchTables]);
+
   const clearTableSession = useCallback(async (tableId: number) => {
     if (!hasAuthToken()) return;
     try {
@@ -1204,6 +1296,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         addToCart,
         removeFromCart,
         updateQuantity,
+        updateItemInstructions,
         clearCart,
         getTotalPrice,
         placeOrder,
@@ -1216,6 +1309,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         cancelOrder,
         taxRate,
         discountRate,
+        upiId,
         updateSettings,
         setTaxRate,
         customerDetails,
@@ -1228,6 +1322,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setTable,
         tableStatuses,
         createTable,
+        deleteTable,
         clearTableSession,
         analyticsPeriod,
         setAnalyticsPeriod,
