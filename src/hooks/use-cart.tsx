@@ -641,61 +641,88 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       },
     });
 
-    newSocket.on("connect", () => {
-      //console.log('[DEBUG SOCKET] Socket connected:', newSocket.id, 'IsAdmin:', isAdminConnected);
+    setSocket(newSocket);
+  }, [socket]); // Reduced dependencies as we moved logic out
 
-      // Fetch orders on connect
+  // --- Socket Event Listeners (Prevent Stale Closures) ---
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConnect = () => {
+      console.log("[DEBUG SOCKET] Connected");
       fetchRelevantOrders();
-
-      if (isAdminConnected) {
+      if (hasAuthToken()) {
         fetchTables();
         fetchKitchenOrders();
+        socket.emit("join:kitchen");
       }
-    });
+    };
 
-    newSocket.on("newOrder", (order: BackendOrder) => {
-      //console.log('[DEBUG SOCKET] Event "newOrder" received', order?.order_id);
+    const handleNewOrder = (order: BackendOrder) => {
+      // console.log('[DEBUG SOCKET] Event "newOrder" received');
       toast({
         title: "New Order!",
         description: `Table ${order?.table_id}`,
       });
-
       fetchRelevantOrders();
+      if (hasAuthToken()) fetchKitchenOrders();
+    };
 
-      if (hasAuthToken()) {
-        fetchKitchenOrders();
-      }
-    });
+    const handleStatusUpdate = (data: {
+      orderId: number;
+      status: string;
+      tableId: string;
+    }) => {
+      // console.log('[DEBUG SOCKET] Event "orderStatusUpdate" received');
+      const friendlyStatus =
+        data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      toast({
+        title: "Order Update",
+        description: `Table ${data.tableId} is ${friendlyStatus}`,
+      });
+      fetchRelevantOrders();
+      if (hasAuthToken()) fetchKitchenOrders();
+    };
 
-    newSocket.on(
-      "orderStatusUpdate",
-      (data: { orderId: number; status: string; tableId: string }) => {
-        //console.log('[DEBUG SOCKET] Event "orderStatusUpdate" received', data);
-        const friendlyStatus =
-          data.status.charAt(0).toUpperCase() + data.status.slice(1);
-        toast({
-          title: "Order Update",
-          description: `Table ${data.tableId} is ${friendlyStatus}`,
-        });
-
-        fetchRelevantOrders();
-
-        if (hasAuthToken()) {
-          fetchKitchenOrders();
-        }
-      }
-    );
-
-    newSocket.on("disconnect", (reason) => {
+    const handleDisconnect = (reason: any) => {
       console.log("[DEBUG SOCKET] Socket disconnected:", reason);
-    });
+    };
 
-    newSocket.on("connect_error", (err) => {
+    const handleConnectError = (err: any) => {
       console.error("[DEBUG SOCKET] Socket connection error:", err.message);
-    });
+    };
 
-    setSocket(newSocket);
-  }, [socket, toast, fetchTables, fetchKitchenOrders, fetchRelevantOrders]);
+    // Attach listeners
+    socket.on("connect", handleConnect);
+    socket.on("order:new", handleNewOrder);
+    socket.on("order:statusUpdate", handleStatusUpdate);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+
+    // If socket is already connected (re-render), ensure we join/fetch if needed
+    if (socket.connected) {
+      // Optional: We might not want to re-fetch on every render, but we need to ensure 'join' if auth changed?
+      // For now, relies on 'connect' event usually, but if we just logged in, we might need manual trigger.
+      // Handled by manual calls elsewhere or page reload for auth usually.
+    }
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("order:new", handleNewOrder);
+      socket.off("order:statusUpdate", handleStatusUpdate);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+    };
+  }, [socket, fetchRelevantOrders, fetchKitchenOrders, fetchTables, toast]);
+
+  // Join table room when socket and tableId are ready
+  useEffect(() => {
+    if (socket && tableId && !hasAuthToken()) {
+      console.log("[DEBUG SOCKET] Joining table room:", tableId);
+      socket.emit("join:table", tableId);
+    }
+  }, [socket, tableId]);
 
   // --- Table Status Calculation  ---
   const tableStatuses = useMemo(() => {
