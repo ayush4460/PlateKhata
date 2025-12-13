@@ -39,6 +39,7 @@ export interface BackendOrder {
   order_id: number;
   order_number: string;
   table_id: number;
+  table_number?: string;
   customer_name: string;
   customer_phone: string;
   total_amount: number;

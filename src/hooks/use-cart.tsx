@@ -171,7 +171,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
   orderNumber: order.order_number,
   userName: order.customer_name,
   userPhone: order.customer_phone,
-  tableNumber: String(order.table_id),
+  tableNumber: order.table_number || String(order.table_id),
   date: order.created_at,
   status: (order.order_status.charAt(0).toUpperCase() +
     order.order_status.slice(1)) as PastOrder["status"],
@@ -197,7 +197,7 @@ const mapBackendOrderToKitchenOrder = (
 ): KitchenOrder & { created_at: string } => ({
   id: String(order.order_id),
   orderNumber: order.order_number,
-  table: String(order.table_id),
+  table: order.table_number || String(order.table_id),
   items: (order.items || []).map((item) => ({
     name: item.item_name || "N/A",
     quantity: item.quantity,
