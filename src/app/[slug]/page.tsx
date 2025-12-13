@@ -26,7 +26,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import type { MenuItem } from "@/lib/types";
+import type { MenuItem, Category } from "@/lib/types"; // Added Category type
+import { CategoryService } from "@/services/category.service"; // Added Service
 import {
   Sheet,
   SheetContent,
@@ -39,17 +40,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCart } from "@/hooks/use-cart";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-const categories = [
-  { name: "Specials", id: "specials", icon: Star },
-  { name: "Appetizers", id: "appetizers", icon: Sparkles },
-  { name: "Starters", id: "starters", icon: Flame },
-  { name: "Soups", id: "soups", icon: Soup },
-  { name: "Salads", id: "salads", icon: Salad },
-  { name: "Main Course", id: "main course", icon: UtensilsCrossed },
-  { name: "Breads", id: "breads", icon: Croissant },
-  { name: "Beverages", id: "beverages", icon: GlassWater },
-  { name: "Desserts", id: "desserts", icon: Cake },
-];
+// Removed static CATEGORIES. Will fetch dynamically.
 
 function MenuContent() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -70,6 +61,7 @@ function MenuContent() {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId");
 
+  const [dynamicCategories, setDynamicCategories] = useState<Category[]>([]);
   const [remoteMenuItems, setRemoteMenuItems] = useState<MenuItem[]>([]);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
 
@@ -314,6 +306,16 @@ function MenuContent() {
     };
   }, [API_BASE, stateRestaurantId, restaurantId, slug]);
 
+  // Fetch Dynamic Categories
+  useEffect(() => {
+    const rId = stateRestaurantId || restaurantId;
+    if (rId && rId !== "undefined") {
+      CategoryService.getAll(Number(rId))
+        .then((cats) => setDynamicCategories(cats))
+        .catch((err) => console.error("Failed to load categories", err));
+    }
+  }, [stateRestaurantId, restaurantId]);
+
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
@@ -410,21 +412,24 @@ function MenuContent() {
             >
               All
             </Button>
-            {categories.map((category) => (
+            {dynamicCategories.map((category) => (
               <Button
-                key={category.id}
+                key={category.id} // ID is unique
                 variant={
-                  selectedCategory === category.id ? "default" : "outline"
+                  selectedCategory === category.name.toLowerCase()
+                    ? "default"
+                    : "outline"
                 }
                 className={cn(
                   "rounded-full whitespace-nowrap flex items-center gap-2",
-                  selectedCategory === category.id
+                  selectedCategory === category.name.toLowerCase()
                     ? "bg-primary text-primary-foreground"
                     : "bg-card"
                 )}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => setSelectedCategory(category.name.toLowerCase())}
               >
-                <category.icon className="h-4 w-4" />
+                {/* Fallback Icon */}
+                <UtensilsCrossed className="h-4 w-4" />
                 {category.name}
               </Button>
             ))}

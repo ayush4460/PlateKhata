@@ -11,6 +11,7 @@ export interface MenuItem {
     hint: string;
   };
   category: string;
+  categoryId?: number; // Added for dynamic categories support
   isAvailable: boolean;
   isVegetarian: boolean;
   preparationTime: number | null;
@@ -131,3 +132,15 @@ export interface AdminUser {
   fullName?: string;
   username?: string;
 }
+// Category definition
+export interface Category {
+  id: number; // mapped from category_id
+  restaurant_id: number;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export type CreateCategoryDTO = Pick<Category, 'name' | 'display_order'>;
+export type UpdateCategoryDTO = Partial<Omit<Category, 'id' | 'restaurant_id' | 'created_at'>>;
