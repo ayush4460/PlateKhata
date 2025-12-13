@@ -26,7 +26,14 @@ interface jsPDFWithAutoTable extends jsPDF {
 const RECEIPT_GRACE_PERIOD = 30 * 60 * 1000;
 
 export default function OrdersPage() {
-  const { pastOrders, isCartLoading, tableNumber, tableId } = useCart();
+  const {
+    pastOrders,
+    isCartLoading,
+    tableNumber,
+    tableId,
+    restaurantSlug,
+    tableToken,
+  } = useCart();
   const [isClient, setIsClient] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -473,7 +480,10 @@ export default function OrdersPage() {
   };
 
   const handleAddMoreItems = () => {
-    router.push(`/?table=${tableNumber}`);
+    const targetUrl = restaurantSlug
+      ? `/${restaurantSlug}${tableToken ? `?token=${tableToken}` : ""}`
+      : `/?table=${tableNumber}`;
+    router.push(targetUrl);
   };
   const handleMakePayment = () => {
     setIsPaymentModalOpen(true);
@@ -503,14 +513,34 @@ export default function OrdersPage() {
               Please scan a table's QR code.
             </p>
             <Button asChild>
-              <Link href="/">Go to Menu</Link>
+              <Link
+                href={
+                  restaurantSlug
+                    ? `/${restaurantSlug}${
+                        tableToken ? `?token=${tableToken}` : ""
+                      }`
+                    : "/"
+                }
+              >
+                Go to Menu
+              </Link>
             </Button>
           </div>
         ) : allDisplayedOrders.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-muted-foreground">No active orders found.</p>
             <Button asChild className="mt-4">
-              <Link href={`/?table=${tableNumber}`}>Start Ordering</Link>
+              <Link
+                href={
+                  restaurantSlug
+                    ? `/${restaurantSlug}${
+                        tableToken ? `?token=${tableToken}` : ""
+                      }`
+                    : `/?table=${tableNumber}`
+                }
+              >
+                Start Ordering
+              </Link>
             </Button>
           </div>
         ) : (

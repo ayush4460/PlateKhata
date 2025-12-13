@@ -64,6 +64,8 @@ function MenuContent() {
     setRestaurantId,
     restaurantId: stateRestaurantId,
     setTableId,
+    setRestaurantSlug,
+    setTableToken,
   } = useCart();
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId");
@@ -94,6 +96,18 @@ function MenuContent() {
             console.log("[DEBUG] Verify response data:", data);
 
             const payload = data.data || data;
+            if (tokenQueryParam) {
+              console.log("[DEBUG SLUG] Found token param:", tokenQueryParam);
+              if (setTableToken) {
+                console.log("[DEBUG SLUG] Setting table token in context");
+                setTableToken(tokenQueryParam);
+              } else {
+                console.warn(
+                  "[DEBUG SLUG] setTableToken is missing from useCart"
+                );
+              }
+            }
+
             if (payload && payload.tableNumber) {
               const tableNum = String(payload.tableNumber);
               console.log("[DEBUG] Setting table to:", tableNum);
@@ -148,37 +162,29 @@ function MenuContent() {
       if (!slug) return;
 
       try {
-        // Strategy 1: Try fetching by slug directly
-        const res = await fetch(`${API_BASE}/restaurants/${slug}`);
-        if (res.ok) {
-          const data = await res.json();
-          const target = data.data || data; // Handle wrapper
-          if (target && target.id) {
-            setRestaurantId(String(target.id));
+        // Strategy 1: Try direct lookup by slug
+        console.log(`[Menu] Fetching restaurant by slug: ${slug}`);
+        const response = await fetch(`${API_BASE}/public/restaurants/${slug}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            // Backend returns restaurantId, not id
+            const rId = data.data.restaurantId || data.data.id;
+            setRestaurantId(String(rId));
+            if (slug && setRestaurantSlug) {
+              console.log("[DEBUG SLUG] Setting restaurant slug:", slug);
+              setRestaurantSlug(slug);
+            }
             return;
           }
-        }
-
-        // Strategy 2: If direct fetch fails (or API differs), fetch all and filter
-        // (This is a fallback for development/inconsistent APIs)
-        const resAll = await fetch(`${API_BASE}/restaurants`);
-        if (resAll.ok) {
-          const dataAll = await resAll.json();
-          const list = Array.isArray(dataAll) ? dataAll : dataAll.data || [];
-          // Loose match on slug, name, or id
-          const match = list.find(
-            (r: any) =>
-              String(r.slug || "").toLowerCase() === slug.toLowerCase() ||
-              String(r.name || "").toLowerCase() === slug.toLowerCase() ||
-              String(r.id) === slug
+          console.warn(
+            `[Menu] Could not resolve restaurant for slug: ${slug}, status: ${response.status}`
           );
-          if (match) {
-            setRestaurantId(String(match.id));
-          } else {
-            console.warn(
-              `[Menu] Could not resolve restaurant for slug: ${slug}`
-            );
-          }
+        } else {
+          console.warn(
+            `[Menu] API Error resolving restaurant: ${response.status}`
+          );
         }
       } catch (err) {
         console.error("Failed to resolve restaurant slug", err);
@@ -207,6 +213,13 @@ function MenuContent() {
 
       if (slug && !targetId) {
         // console.log('[menu] Waiting for restaurant ID resolution...');
+        return;
+      }
+
+      // Safety check for invalid ID
+      if (targetId === "undefined" || targetId === "null") {
+        console.warn("[menu] Invalid targetId detected:", targetId);
+        setIsLoadingMenu(false);
         return;
       }
 

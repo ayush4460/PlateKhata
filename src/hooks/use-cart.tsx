@@ -113,6 +113,10 @@ interface CartContextType {
   setRestaurantId: (id: string) => void;
   tableId: string | null;
   setTableId: (id: string | null) => void;
+  restaurantSlug: string | null;
+  setRestaurantSlug: (slug: string) => void;
+  tableToken: string | null;
+  setTableToken: (token: string) => void;
 }
 
 // Create the context
@@ -250,6 +254,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [restaurantId, setRestaurantIdState] = useState<string | null>(null);
   const [tableId, setTableId] = useState<string | null>(null);
+  const [restaurantSlug, setRestaurantSlugState] = useState<string | null>(
+    null
+  );
+  const [tableToken, setTableTokenState] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -337,6 +345,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (storedRestaurantId) {
       setRestaurantIdState(storedRestaurantId);
     }
+
+    const storedSlug = safeJsonParse<string>(
+      localStorage.getItem("restaurantSlug")
+    );
+    console.log("[DEBUG INIT] Loaded storedSlug:", storedSlug);
+    if (storedSlug) setRestaurantSlugState(storedSlug);
+
+    const storedToken = safeJsonParse<string>(
+      localStorage.getItem("tableToken")
+    );
+    console.log("[DEBUG INIT] Loaded storedToken:", storedToken);
+    if (storedToken) setTableTokenState(storedToken);
 
     // Initialize empty orders
     setPastOrders([]);
@@ -1561,6 +1581,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         },
         tableId,
         setTableId,
+        restaurantSlug,
+        setRestaurantSlug: (slug: string) => {
+          console.log("[DEBUG CONTEXT] setRestaurantSlug called with:", slug);
+          setRestaurantSlugState(slug);
+          writeToStorage("restaurantSlug", slug);
+        },
+        tableToken,
+        setTableToken: (token: string) => {
+          console.log("[DEBUG CONTEXT] setTableToken called with:", token);
+          setTableTokenState(token);
+          writeToStorage("tableToken", token);
+        },
       }}
     >
       {children}

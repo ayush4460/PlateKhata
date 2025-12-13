@@ -38,6 +38,8 @@ export default function CartPage() {
     isCartLoading,
     tableNumber,
     customerDetails,
+    restaurantSlug,
+    tableToken,
   } = useCart();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -138,7 +140,17 @@ export default function CartPage() {
           <div className="text-center py-20">
             <p className="text-muted-foreground mb-4">Your cart is empty.</p>
             <Button asChild>
-              <Link href="/">Go to Menu</Link>
+              <Link
+                href={
+                  restaurantSlug
+                    ? `/${restaurantSlug}${
+                        tableToken ? `?token=${tableToken}` : ""
+                      }`
+                    : "/"
+                }
+              >
+                Go to Menu
+              </Link>
             </Button>
           </div>
         ) : (
