@@ -37,7 +37,7 @@ import {
   parseISO,
 } from "date-fns";
 import { io, Socket } from "socket.io-client";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { QRCodeCanvas } from "qrcode.react";
 import { write } from "fs";
 
@@ -499,115 +499,124 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast]);
 
+  const pathname = usePathname();
+
   //  fetchRelevantOrders
-  const fetchRelevantOrders = useCallback(async () => {
-    let url = `${API_BASE}/orders`;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+  const fetchRelevantOrders = useCallback(
+    async (tokenOverride?: string) => {
+      let url = `${API_BASE}/orders`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
 
-    const isAdminUser = hasAuthToken();
+      const isAdminUser = hasAuthToken();
+      const isDashboard = pathname?.startsWith("/dashboard");
+      const currentSessionToken = tokenOverride || sessionToken;
 
-    if (isAdminUser) {
-      // Admin: fetch all orders with all statuses
-      const queryParams: string[] = [];
-      [
-        "pending",
-        "confirmed",
-        "preparing",
-        "ready",
-        "served",
-        "completed",
-        "cancelled",
-      ].forEach((s) => queryParams.push(`status=${s}`));
-      queryParams.push("limit=200");
-      url = `${API_BASE}/orders?${queryParams.join("&")}`;
+      // Use Admin Mode ONLY if user is Admin AND on Dashboard
+      // Otherwise, if they are on a public page (like /orders), treat them as a Customer
+      if (isAdminUser && isDashboard) {
+        // Admin: fetch all orders with all statuses
+        const queryParams: string[] = [];
+        [
+          "pending",
+          "confirmed",
+          "preparing",
+          "ready",
+          "served",
+          "completed",
+          "cancelled",
+        ].forEach((s) => queryParams.push(`status=${s}`));
+        queryParams.push("limit=200");
+        url = `${API_BASE}/orders?${queryParams.join("&")}`;
 
-      Object.assign(headers, authHeaders());
-      //console.log('[DEBUG FETCH] Admin mode - URL:', url);
-    } else if (sessionToken && tableNumber) {
-      // Customer: Fetch orders for current session (INCLUDING COMPLETED)
-      const queryParams: string[] = [];
+        Object.assign(headers, authHeaders());
+        //console.log('[DEBUG FETCH] Admin/Dashboard mode - URL:', url);
+      } else if (currentSessionToken && tableNumber) {
+        // Customer: Fetch orders for current session (INCLUDING COMPLETED)
+        const queryParams: string[] = [];
 
-      // This allows receipt download during grace period
-      [
-        "pending",
-        "confirmed",
-        "preparing",
-        "ready",
-        "served",
-        "completed",
-      ].forEach((s) => queryParams.push(`status=${s}`));
+        // This allows receipt download during grace period
+        [
+          "pending",
+          "confirmed",
+          "preparing",
+          "ready",
+          "served",
+          "completed",
+        ].forEach((s) => queryParams.push(`status=${s}`));
 
-      // Pass tableId
-      queryParams.push(`tableId=${tableNumber}`);
+        // Pass tableId
+        queryParams.push(`tableId=${tableNumber}`);
 
-      url = `${API_BASE}/orders?${queryParams.join("&")}`;
+        url = `${API_BASE}/orders?${queryParams.join("&")}`;
 
-      // CRITICAL: Session token in header
-      headers["x-session-token"] = sessionToken;
-    } else {
-      // No valid auth
-      //console.log('[DEBUG FETCH] No auth - returning empty');
-      setPastOrders([]);
-      return;
-    }
-
-    try {
-      const res = await fetch(url, { headers });
-
-      //console.log('[DEBUG FETCH] Response status:', res.status);
-
-      if (!res.ok) {
-        if (isAdminUser) {
-          toast({ variant: "destructive", title: "Auth Error" });
-        }
-        //console.log('[DEBUG FETCH] Response not OK, clearing orders');
+        // CRITICAL: Session token in header
+        headers["x-session-token"] = currentSessionToken;
+      } else {
+        // No valid auth
+        //console.log('[DEBUG FETCH] No auth - returning empty');
         setPastOrders([]);
         return;
       }
 
-      if (res.status === 401 || res.status === 403) {
-        if (!isAdminUser) {
-          console.log(" Session expired/invalid. Clearing local token.");
-          localStorage.removeItem("session_token");
-          setSessionToken(null);
-        }
-        setPastOrders([]);
-        return;
-      }
+      try {
+        const res = await fetch(url, { headers });
 
-      const responseData = await res.json();
-      //console.log('[DEBUG FETCH] Raw response:', responseData);
+        //console.log('[DEBUG FETCH] Response status:', res.status);
 
-      const orders: BackendOrder[] = extractArrayFromResponse(
-        responseData,
-        `fetchRelevantOrders`
-      );
-
-      let filteredOrders = orders;
-
-      if (!isAdminUser) {
-        // Only filter out cancelled orders for customers
-        const beforeFilter = filteredOrders.length;
-        filteredOrders = orders.filter((o) => {
-          const status = o.order_status?.toLowerCase();
-
-          // Only filter out cancelled orders
-          if (status === "cancelled") {
-            return false;
+        if (!res.ok) {
+          if (isAdminUser) {
+            toast({ variant: "destructive", title: "Auth Error" });
           }
+          //console.log('[DEBUG FETCH] Response not OK, clearing orders');
+          setPastOrders([]);
+          return;
+        }
 
-          return true;
-        });
+        if (res.status === 401 || res.status === 403) {
+          if (!isAdminUser) {
+            console.log(" Session expired/invalid. Clearing local token.");
+            localStorage.removeItem("session_token");
+            setSessionToken(null);
+          }
+          setPastOrders([]);
+          return;
+        }
+
+        const responseData = await res.json();
+        //console.log('[DEBUG FETCH] Raw response:', responseData);
+
+        const orders: BackendOrder[] = extractArrayFromResponse(
+          responseData,
+          `fetchRelevantOrders`
+        );
+
+        let filteredOrders = orders;
+
+        if (!isAdminUser) {
+          // Only filter out cancelled orders for customers
+          const beforeFilter = filteredOrders.length;
+          filteredOrders = orders.filter((o) => {
+            const status = o.order_status?.toLowerCase();
+
+            // Only filter out cancelled orders
+            if (status === "cancelled") {
+              return false;
+            }
+
+            return true;
+          });
+        }
+
+        setPastOrders(filteredOrders.map(mapBackendOrderToPastOrder));
+      } catch (error) {
+        console.error(`[DEBUG FETCH] Error in fetchRelevantOrders:`, error);
+        setPastOrders([]);
       }
-
-      setPastOrders(filteredOrders.map(mapBackendOrderToPastOrder));
-    } catch (error) {
-      console.error(`[DEBUG FETCH] Error in fetchRelevantOrders:`, error);
-      setPastOrders([]);
-    }
-  }, [sessionToken, tableNumber, toast]);
+    },
+    [sessionToken, tableNumber, toast]
+  );
 
   useEffect(() => {
     if (!sessionToken && !hasAuthToken()) {

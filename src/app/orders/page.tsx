@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useCart } from "@/hooks/use-cart";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Download, PlusCircle, CreditCard, FileText } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
@@ -38,6 +39,16 @@ export default function OrdersPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const router = useRouter();
+
+  /* New logic for redirecting after payment */
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  // Remove resetSession from destructuring if not available, simply rely on router push
+  // const { resetSession } = useCart();
+  const { toast } = useToast(); // Make sure useToast is imported or available from hook
+
+  // Need tableSessionOrders to be defined before effect?
+  // Wait, tableSessionOrders is defined at line 65 (useMemo).
+  // Hooks must be in order. I should insert this affect AFTER tableSessionOrders definition.
 
   // DEBUG: Log what we receive from useCart
   useEffect(() => {
@@ -148,6 +159,33 @@ export default function OrdersPage() {
     allDisplayedOrders.length > 0 &&
     allDisplayedOrders.every((o) => o.paymentStatus === "Approved");
   const hasCompletedOrders = tableSessionOrders.completed.length > 0;
+
+  useEffect(() => {
+    // 1. Detect Payment Completion
+    if (
+      !isRedirecting &&
+      tableSessionOrders.completed.length > 0 &&
+      tableSessionOrders.active.length === 0
+    ) {
+      setIsRedirecting(true);
+      toast({
+        title: "Payment Approved!",
+        description: "Thank you for dining with us. Redirecting...",
+        duration: 3000,
+      });
+    }
+  }, [tableSessionOrders, isRedirecting, toast]);
+
+  useEffect(() => {
+    // 2. Handle Redirect Timer
+    if (isRedirecting) {
+      const timer = setTimeout(() => {
+        router.push(restaurantSlug ? `/${restaurantSlug}` : "/");
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isRedirecting, router, restaurantSlug]);
 
   // Calculate remaining time for receipt availability
   const getReceiptTimeRemaining = () => {
@@ -658,8 +696,8 @@ export default function OrdersPage() {
                   <span>₹{sessionTotals.total.toFixed(2)}</span>
                 </div>
 
-                {/* RECEIPT BUTTON - Show if any completed orders exist (within grace period) */}
-                {hasCompletedOrders && (
+                {/* RECEIPT BUTTON - Hide during redirect */}
+                {hasCompletedOrders && !isRedirecting && (
                   <div className="space-y-2 pt-2">
                     <Button
                       className="w-full gap-2"
