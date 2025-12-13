@@ -1,7 +1,7 @@
 // src/app/dashboard/layout.tsx
-'use client';
+"use client";
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from "next/navigation";
 import {
   SidebarProvider,
   Sidebar,
@@ -12,20 +12,29 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarTrigger,
-} from '@/components/ui/sidebar';
-import { Home, ListOrdered, BarChart, UtensilsCrossed, ClipboardEdit, QrCode } from 'lucide-react';
-import Link from 'next/link';
-import { SidebarLogoutButton } from '@/components/auth/logout-button';
-import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/use-auth'; // keep your existing hook path
+} from "@/components/ui/sidebar";
+import {
+  Home,
+  ListOrdered,
+  BarChart,
+  UtensilsCrossed,
+  ClipboardEdit,
+  QrCode,
+  Settings,
+} from "lucide-react";
+import Link from "next/link";
+import { SidebarLogoutButton } from "@/components/auth/logout-button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth"; // keep your existing hook path
 
 const menuItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/orders', label: 'Orders', icon: ListOrdered },
-  { href: '/dashboard/menu-editor', label: 'Menu', icon: ClipboardEdit },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart },
-  { href: '/dashboard/qr-generator', label: 'QR Codes', icon: QrCode },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/dashboard/orders", label: "Orders", icon: ListOrdered },
+  { href: "/dashboard/menu-editor", label: "Menu", icon: ClipboardEdit },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart },
+  { href: "/dashboard/qr-generator", label: "QR Codes", icon: QrCode },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function DashboardLayout({
@@ -44,8 +53,14 @@ export default function DashboardLayout({
   useEffect(() => {
     // check localStorage for session presence on client side
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("accessToken")
+          : null;
+      const storedUser =
+        typeof window !== "undefined"
+          ? localStorage.getItem("adminUser")
+          : null;
       setHasLocalSession(!!token && !!storedUser);
     } catch (err) {
       setHasLocalSession(false);
@@ -59,7 +74,7 @@ export default function DashboardLayout({
     // - AND there's no persisted session in localStorage
     if (!isAuthLoading) {
       if (!adminUser && !hasLocalSession) {
-        router.replace('/login');
+        router.replace("/login");
       } else {
       }
     }
