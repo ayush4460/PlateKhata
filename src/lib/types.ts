@@ -29,6 +29,7 @@ export interface BackendOrderItem {
   item_name: string;
   quantity: number;
   price: number;
+  unit_price?: number; // Added to match API
   special_instructions: string | null;
   item_category: string;
 }
@@ -44,7 +45,8 @@ export interface BackendOrder {
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
-  order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
+  session_id?: string; // Added to match API
+  order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';  // Added 'served'
   payment_status: 'Pending' | 'Approved';
   payment_method?: 'Cash' | 'UPI' | 'Card' | 'Other';
   created_at: string; // ISO date string
@@ -117,4 +119,14 @@ export interface TableStatus {
 }
 
 
+
 export type AnalyticsPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: 'admin' | 'kitchen';
+  restaurantId?: string | number; // Added restaurantId
+  fullName?: string;
+  username?: string;
+}

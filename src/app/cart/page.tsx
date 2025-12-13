@@ -1,15 +1,15 @@
 // src/app/cart/page.tsx
-'use client';
+"use client";
 
-import { useCart } from '@/hooks/use-cart';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { BottomNav } from '@/components/layout/bottom-nav';
-import { Minus, Plus, Trash2 } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { useCart } from "@/hooks/use-cart";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { BottomNav } from "@/components/layout/bottom-nav";
+import { Minus, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,19 +18,31 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { sub } from 'date-fns';
-import { Textarea } from '@/components/ui/textarea';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { sub } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function CartPage() {
-  const { cart, updateQuantity, updateItemInstructions, removeFromCart, getTotalPrice, placeOrder, taxRate, isCartLoading, tableNumber, customerDetails } = useCart();
+  const {
+    cart,
+    updateQuantity,
+    updateItemInstructions,
+    removeFromCart,
+    getTotalPrice,
+    placeOrder,
+    pastOrders,
+    taxRate,
+    isCartLoading,
+    tableNumber,
+    customerDetails,
+  } = useCart();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   // const [customerEmail, setCustomerEmail] = useState(''); // <-- COMMENTED OUT
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -43,8 +55,8 @@ export default function CartPage() {
 
   useEffect(() => {
     if (customerDetails) {
-        setCustomerName(customerDetails.name);
-        setCustomerPhone(customerDetails.phone);
+      setCustomerName(customerDetails.name);
+      setCustomerPhone(customerDetails.phone);
     }
   }, [customerDetails]);
 
@@ -60,8 +72,6 @@ export default function CartPage() {
   };
 
   const handlePlaceOrder = async () => {
-
-
     /* --- COMMENTED OUT EMAIL VALIDATION ---
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerEmail)) {
@@ -75,11 +85,15 @@ export default function CartPage() {
     */
 
     if (!/^[6-9]\d{9}$/.test(customerPhone)) {
-        toast({ variant: "destructive", title: "Invalid Phone", description: "Please enter a valid 10-digit phone number." });
-        return;
+      toast({
+        variant: "destructive",
+        title: "Invalid Phone",
+        description: "Please enter a valid 10-digit phone number.",
+      });
+      return;
     }
     if (submittingRef.current || isPlacingOrder || isCartLoading) {
-      console.log('⛔ Already submitting, ignoring click');
+      console.log("⛔ Already submitting, ignoring click");
       return;
     }
     submittingRef.current = true;
@@ -88,13 +102,12 @@ export default function CartPage() {
     let success = false;
 
     try {
-
-        success = await executeOrder(customerName, customerPhone);
+      success = await executeOrder(customerName, customerPhone);
     } catch (error) {
-        console.error("Error during order execution:", error);
+      console.error("Error during order execution:", error);
     } finally {
-        submittingRef.current = false;
-        setIsPlacingOrder(false);
+      submittingRef.current = false;
+      setIsPlacingOrder(false);
     }
 
     if (success) {
@@ -102,12 +115,16 @@ export default function CartPage() {
       //setCustomerName('');
       //setCustomerPhone('');
       // setCustomerEmail(''); // <-- COMMENTED OUT
-      router.push('/orders');
+      router.push("/orders");
     }
   };
 
   if (!isClient || isCartLoading) {
-    return <div className="flex items-center justify-center h-screen bg-background"><p>Loading...</p></div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <p>Loading...</p>
+      </div>
+    );
   }
 
   return (
@@ -130,14 +147,43 @@ export default function CartPage() {
             <div className="space-y-4">
               {cart.map((item) => (
                 <div key={item.id} className="flex items-center gap-4">
-                  <Image src={item.image.url} alt={item.name} width={80} height={80} className="rounded-lg object-cover aspect-square" />
+                  <Image
+                    src={item.image.url}
+                    alt={item.name}
+                    width={80}
+                    height={80}
+                    className="rounded-lg object-cover aspect-square"
+                  />
                   <div className="flex-1">
                     <h3 className="font-semibold">{item.name}</h3>
-                    <p className="text-sm text-muted-foreground">₹{item.price.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      ₹{item.price.toFixed(2)}
+                    </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="h-4 w-4" /></Button>
-                      <span className="font-bold w-4 text-center">{item.quantity}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="h-4 w-4" /></Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity - 1)
+                        }
+                        disabled={item.quantity <= 1}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="font-bold w-4 text-center">
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity + 1)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
                     <div className="mt-3">
                       <label className="text-xs text-muted-foreground mb-1 block">
@@ -145,16 +191,27 @@ export default function CartPage() {
                       </label>
                       <Textarea
                         placeholder="e.g., No onions, extra spicy, well done"
-                        value={item.specialInstructions || ''}
-                        onChange={(e) => updateItemInstructions(item.id, e.target.value)}
+                        value={item.specialInstructions || ""}
+                        onChange={(e) =>
+                          updateItemInstructions(item.id, e.target.value)
+                        }
                         className="text-sm resize-none h-16"
                         rows={2}
                       />
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <p className="font-bold">₹{(item.price * item.quantity).toFixed(2)}</p>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.id)}><Trash2 className="h-5 w-5" /></Button>
+                    <p className="font-bold">
+                      ₹{(item.price * item.quantity).toFixed(2)}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => removeFromCart(item.id)}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -164,47 +221,146 @@ export default function CartPage() {
 
             {/* Bill Details (Keep existing) */}
             <div>
-                <h2 className="text-lg font-semibold mb-4">Bill Details</h2>
-                <div className="space-y-2">
-                    {taxRate > 0 && (<><div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({(taxRate * 100).toFixed(0)}%)</span><span>₹{tax.toFixed(2)}</span></div></>)}
-                    <Separator />
-                    <div className="flex justify-between font-bold text-lg"><span>Total</span><span>₹{total.toFixed(2)}</span></div>
+              <h2 className="text-lg font-semibold mb-4">Bill Details</h2>
+              <div className="space-y-2">
+                {taxRate > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span>₹{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Tax ({(taxRate * 100).toFixed(0)}%)
+                      </span>
+                      <span>₹{tax.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                <Separator />
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total</span>
+                  <span>₹{total.toFixed(2)}</span>
                 </div>
+              </div>
             </div>
 
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-                <DialogTrigger asChild>
-                    <Button size="lg" className="w-full" disabled={!tableNumber}>{tableNumber ? 'Place Order' : 'Please scan a table first'}</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Almost there!</DialogTitle>
-                        <DialogDescription>Please enter your details to place the order.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Name</Label>
-                            <Input id="name" placeholder="John Doe" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">Phone Number</Label>
-                            <Input id="phone" type="tel" placeholder="9876543210" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-                        </div>
-                        {/* --- COMMENTED OUT EMAIL UI --- */}
-                        {/* <div className="space-y-2">
+              <DialogTrigger asChild>
+                <Button size="lg" className="w-full" disabled={!tableNumber}>
+                  {tableNumber ? "Place Order" : "Please scan a table first"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Almost there!</DialogTitle>
+                  <DialogDescription>
+                    Please enter your details to place the order.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="John Doe"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="9876543210"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                    />
+                  </div>
+                  {/* --- COMMENTED OUT EMAIL UI --- */}
+                  {/* <div className="space-y-2">
                             <Label htmlFor="email">Email Address</Label>
                             <Input id="email" type="email" placeholder="john.doe@example.com" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
                         </div>
                         */}
-                        {/* --- END COMMENT --- */}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
-                        <Button onClick={handlePlaceOrder} disabled={isPlacingOrder}>{isPlacingOrder ? "Placing Order..." : "Confirm & Place Order"}</Button>
-                    </DialogFooter>
-                </DialogContent>
+                  {/* --- END COMMENT --- */}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCheckoutOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handlePlaceOrder} disabled={isPlacingOrder}>
+                    {isPlacingOrder
+                      ? "Placing Order..."
+                      : "Confirm & Place Order"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
             </Dialog>
+          </div>
+        )}
+        {/* Active Orders Section */}
+        {pastOrders.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-bold mb-4">Your Orders</h2>
+            <div className="space-y-4">
+              {pastOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-card rounded-lg p-4 border shadow-sm"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-semibold text-sm">
+                        Order #
+                        {order.orderNumber?.slice(-4) || order.id.slice(-4)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.date).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium capitalize ${
+                        order.status.toLowerCase() === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : order.status.toLowerCase() === "preparing"
+                          ? "bg-blue-100 text-blue-800"
+                          : order.status.toLowerCase() === "ready"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {order.status}
+                    </span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="space-y-2">
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span>
+                          {item.quantity}x {item.name}
+                        </span>
+                        <span className="text-muted-foreground">
+                          ₹{(item.price * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between font-bold text-sm">
+                    <span>Total</span>
+                    <span>₹{order.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
