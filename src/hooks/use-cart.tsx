@@ -747,7 +747,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         const numStr = t.table_number || idStr;
         const isOccupied = pastOrders.some(
           (o) =>
-            o.tableNumber === idStr &&
+            (o.tableNumber === idStr || o.tableNumber === numStr) &&
             o.paymentStatus === "Pending" &&
             o.status !== "Completed" &&
             o.status !== "Cancelled"
