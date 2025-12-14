@@ -29,6 +29,7 @@ import {
   X,
   Calendar as CalendarIcon,
   Filter,
+  Download,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -60,6 +61,7 @@ import {
 } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { PastOrder } from "@/lib/types";
+import * as XLSX from "xlsx";
 
 // Sub-component for the expanded session details
 function SessionDetails({
@@ -288,7 +290,6 @@ export function RecentOrders() {
         from = startOfMonth(now);
         to = endOfMonth(now);
         break;
-      // "Tomorrow" or custom future logic if strictly needed, but usually ranges handle it
       default:
         return;
     }
@@ -313,13 +314,109 @@ export function RecentOrders() {
           ? format(range.to, "yyyy-MM-dd")
           : format(range.from, "yyyy-MM-dd"),
       });
-    } else {
-      // Clear filters if no range (or show all? better to keep at least something or clear)
-      // setOrderFilters({});
     }
   };
 
-  // Group orders by session_id
+  const handleExportExcel = () => {
+    try {
+      if (pastOrders.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No orders to export for this period.",
+        });
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      // 1. Group orders by Table
+      const ordersByTable: Record<string, any[]> = {};
+      pastOrders.forEach((order) => {
+        const tableKey = order.tableNumber || "Unknown Table";
+        if (!ordersByTable[tableKey]) {
+          ordersByTable[tableKey] = [];
+        }
+        ordersByTable[tableKey].push(order);
+      });
+
+      // 2. Create Sheet per Table
+      Object.keys(ordersByTable)
+        .sort()
+        .forEach((tableKey) => {
+          const tableOrders = ordersByTable[tableKey];
+
+          const rows = tableOrders.map((order) => {
+            // Format Items List
+            const itemsList = order.items
+              .map((i: any) => `${i.quantity}x ${i.name}`)
+              .join(", ");
+
+            // Calculate breakdown if missing
+            const subtotal =
+              order.subtotal ||
+              order.total - (order.tax || 0) + (order.discount || 0) ||
+              0;
+
+            return {
+              "Order Time": format(new Date(order.date), "yyyy-MM-dd HH:mm:ss"),
+              "Order ID": order.orderNumber || order.id.slice(0, 8),
+              "Customer Name": order.userName || "Guest",
+              "Customer Phone": order.userPhone || "",
+              "Menu Items": itemsList,
+              Subtotal: subtotal,
+              Tax: order.tax || 0,
+              "Discount / Adjustment": order.discount || 0,
+              "Total Bill (Admin)": order.total, // This is the final value
+              "Payment Method": order.paymentMethod || "N/A",
+              Status: order.status,
+              "Payment Status": order.paymentStatus,
+            };
+          });
+
+          const ws = XLSX.utils.json_to_sheet(rows);
+
+          // Auto-width columns (basic heuristic)
+          const wscols = [
+            { wch: 20 }, // Time
+            { wch: 15 }, // ID
+            { wch: 15 }, // Name
+            { wch: 15 }, // Phone
+            { wch: 40 }, // Items
+            { wch: 10 }, // Subtotal
+            { wch: 10 }, // Tax
+            { wch: 10 }, // Discount
+            { wch: 15 }, // Total
+            { wch: 15 }, // Payment Method
+            { wch: 15 }, // Status
+            { wch: 15 }, // Payment Status
+          ];
+          ws["!cols"] = wscols;
+
+          XLSX.utils.book_append_sheet(wb, ws, `Table ${tableKey}`);
+        });
+
+      // 3. Save File
+      const fileName = `Orders_Export_${format(
+        new Date(),
+        "yyyy-MM-dd_HH-mm"
+      )}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      toast({
+        title: "Export Successful",
+        description: `Downloaded ${fileName}`,
+      });
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "Could not create Excel file.",
+      });
+    }
+  };
+
+  // Group orders by session_id (Existing logic)
   const groupedOrders = useMemo(() => {
     const groups: Record<string, PastOrder[]> = {};
 
@@ -369,7 +466,6 @@ export function RecentOrders() {
         };
       })
       .sort((a, b) => {
-        // Sort sessions by latest order
         return (
           new Date(b.orders[0].date).getTime() -
           new Date(a.orders[0].date).getTime()
@@ -509,6 +605,17 @@ export function RecentOrders() {
                   />
                 </PopoverContent>
               </Popover>
+
+              {/* Excel Export Button */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleExportExcel}
+                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-2"
+              >
+                <Download className="mr-2 h-3 w-3" />
+                Excel
+              </Button>
             </div>
           </CardHeader>
 
