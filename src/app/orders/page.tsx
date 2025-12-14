@@ -617,6 +617,14 @@ export default function OrdersPage() {
                       <div key={i} className="flex justify-between text-sm">
                         <span>
                           {item.quantity}x {item.name}
+                          {item.spiceLevel && (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 py-0 h-5 text-[10px] border-orange-200 text-orange-600 bg-orange-50"
+                            >
+                              {item.spiceLevel}
+                            </Badge>
+                          )}
                         </span>
                         <span className="text-muted-foreground">
                           ₹{(item.price * item.quantity).toFixed(2)}
@@ -657,6 +665,14 @@ export default function OrdersPage() {
                       <div key={i} className="flex justify-between text-sm">
                         <span>
                           {item.quantity}x {item.name}
+                          {item.spiceLevel && (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 py-0 h-5 text-[10px] border-orange-200 text-orange-600 bg-orange-50"
+                            >
+                              {item.spiceLevel}
+                            </Badge>
+                          )}
                         </span>
                         <span className="text-muted-foreground">
                           ₹{(item.price * item.quantity).toFixed(2)}

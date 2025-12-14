@@ -38,7 +38,18 @@ import {
 } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCart } from "@/hooks/use-cart";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+
+const normalizeBool = (val: any) =>
+  val === true || val === "true" || Number(val) === 1;
 
 // Removed static CATEGORIES. Will fetch dynamically.
 
@@ -57,9 +68,15 @@ function MenuContent() {
     setTableId,
     setRestaurantSlug,
     setTableToken,
+    // cart is already destructured
   } = useCart();
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId");
+
+  // Spice Dialog State
+  const [showSpiceDialog, setShowSpiceDialog] = useState(false);
+  const [spiceItem, setSpiceItem] = useState<MenuItem | null>(null);
+  const [selectedSpiceLevel, setSelectedSpiceLevel] = useState("Regular");
 
   const [dynamicCategories, setDynamicCategories] = useState<Category[]>([]);
   const [remoteMenuItems, setRemoteMenuItems] = useState<MenuItem[]>([]);
@@ -295,6 +312,9 @@ function MenuContent() {
             isVegetarian,
             dietaryType, // Mapped
             preparationTime: o.preparation_time ?? o.preparationTime ?? null,
+            hasSpiceLevels: normalizeBool(
+              o.has_spice_levels ?? o.hasSpiceLevels
+            ), // Added
           } as MenuItem;
         });
 
@@ -327,7 +347,21 @@ function MenuContent() {
 
   const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    addToCart(item);
+    if (item.hasSpiceLevels) {
+      setSpiceItem(item);
+      setSelectedSpiceLevel("Regular");
+      setShowSpiceDialog(true);
+    } else {
+      addToCart(item);
+    }
+  };
+
+  const confirmSpiceSelection = () => {
+    if (spiceItem) {
+      addToCart({ ...spiceItem, spiceLevel: selectedSpiceLevel } as any); // Cast to any or CartItem compatible
+      setShowSpiceDialog(false);
+      setSpiceItem(null);
+    }
   };
 
   const displayedMenu = remoteMenuItems;
@@ -577,6 +611,63 @@ function MenuContent() {
           </SheetContent>
         </Sheet>
       )}
+
+      {/* Spice Level Dialog */}
+      <Dialog open={showSpiceDialog} onOpenChange={setShowSpiceDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Customize Spice Level</DialogTitle>
+            <DialogDescription>
+              Select your preferred spice level for {spiceItem?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            {["Regular", "Mild", "Spicy", "Tangy"].map((level) => (
+              <Button
+                key={level}
+                variant={selectedSpiceLevel === level ? "default" : "outline"}
+                className={cn(
+                  "w-full justify-start text-left h-12 text-base",
+                  selectedSpiceLevel === level &&
+                    "border-primary bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                )}
+                onClick={() => setSelectedSpiceLevel(level)}
+              >
+                <div className="flex items-center w-full">
+                  <div
+                    className={cn(
+                      "w-4 h-4 rounded-full border border-primary mr-3 flex items-center justify-center",
+                      selectedSpiceLevel === level
+                        ? "bg-primary"
+                        : "bg-transparent"
+                    )}
+                  >
+                    {selectedSpiceLevel === level && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  {level}
+                  <span className="ml-auto text-xs text-muted-foreground opacity-70">
+                    {level === "Regular" && "Standard taste"}
+                    {level === "Mild" && "Low spice"}
+                    {level === "Spicy" && "Hot!"}
+                    {level === "Tangy" && "Sour kick"}
+                  </span>
+                </div>
+              </Button>
+            ))}
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <Button
+              type="button"
+              className="w-full h-12 rounded-xl text-lg"
+              onClick={confirmSpiceSelection}
+            >
+              Add to Cart - {selectedSpiceLevel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BottomNav />
     </div>

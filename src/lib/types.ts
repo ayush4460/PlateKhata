@@ -17,12 +17,14 @@ export interface MenuItem {
   dietaryType?: 'veg' | 'non_veg' | 'eggitarian'; // Added
   preparationTime: number | null;
   imageId?: string;
+  hasSpiceLevels?: boolean; // Added
 }
 
 // An item when it is in the cart
 export interface CartItem extends MenuItem {
   quantity: number;
   specialInstructions?: string;
+  spiceLevel?: string; // Added
 }
 
 // The backend's raw Order Item structure
@@ -34,6 +36,7 @@ export interface BackendOrderItem {
   unit_price?: number; // Added to match API
   special_instructions: string | null;
   item_category: string;
+  spice_level?: string | null; // Added
 }
 
 // The backend's raw Order structure
@@ -77,6 +80,7 @@ export interface PastOrder {
     name: string;
     quantity: number;
     price: number;
+    spiceLevel?: string | null; // Added
   }[];
   orderType?: 'regular' | 'addon';
   sessionId?: string;
@@ -92,6 +96,7 @@ export interface KitchenOrder {
     quantity: number;
     specialInstructions: string | null;
     category: string;
+    spiceLevel?: string | null; // Added
   }[];
   time: string;
   status: 'confirmed' | 'preparing' | 'ready';

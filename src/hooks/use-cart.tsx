@@ -205,6 +205,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
     quantity: item.quantity,
     price: parseFloat(String(item.unit_price || item.price || "0")),
     category: item.item_category,
+    spiceLevel: item.spice_level, // Added
   })),
 });
 
@@ -219,6 +220,7 @@ const mapBackendOrderToKitchenOrder = (
     quantity: item.quantity,
     specialInstructions: item.special_instructions,
     category: item.item_category || "Uncategorized",
+    spiceLevel: item.spice_level, // Added
   })),
   time: formatDistanceToNow(new Date(order.created_at), { addSuffix: true }),
   status: order.order_status as any,
@@ -1004,6 +1006,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
                 preparationTime: liveItemRaw.preparation_time,
                 quantity: pastItem.quantity,
                 specialInstructions: "",
+                spiceLevel: (pastItem as any).spiceLevel || null, // Added
               });
             }
           }
@@ -1112,6 +1115,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           itemId: parseInt(item.id, 10),
           quantity: item.quantity,
           specialInstructions: item.specialInstructions || null,
+          spiceLevel: item.spiceLevel || null, // Added
         })),
         customerName: customer.name,
         customerPhone: customer.phone,

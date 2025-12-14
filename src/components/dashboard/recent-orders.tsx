@@ -96,6 +96,7 @@ function SessionDetails({
         orderId: order.id,
         orderType: order.orderType,
         orderNumber: order.orderNumber,
+        spiceLevel: (item as any).spiceLevel, // Added
       }))
     );
   }, [group.orders]);
@@ -129,6 +130,14 @@ function SessionDetails({
               <TableRow key={`${item.orderId}-${idx}`}>
                 <TableCell className="font-medium">
                   {item.name}
+                  {item.spiceLevel && (
+                    <Badge
+                      variant="outline"
+                      className="ml-2 text-xs py-0 h-4 border-orange-200 text-orange-600 bg-orange-50"
+                    >
+                      {item.spiceLevel}
+                    </Badge>
+                  )}
                   {item.orderType === "addon" && (
                     <span className="text-xs text-muted-foreground ml-2">
                       (Add-on #

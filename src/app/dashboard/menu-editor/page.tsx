@@ -150,6 +150,7 @@ export default function MenuEditorPage() {
               ? "veg"
               : "non_veg"),
           preparationTime: o.preparation_time ?? o.preparationTime ?? null,
+          hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels), // Added
         }));
         if (!cancelled) {
           setLocalMenuItems(mapped);
@@ -251,6 +252,7 @@ export default function MenuEditorPage() {
       image: { url: "https://placehold.co/300x300", hint: "" },
       isAvailable: true,
       isVegetarian: false,
+      hasSpiceLevels: false, // Added
       preparationTime: 10,
       imageFile: null,
     });
@@ -347,6 +349,7 @@ export default function MenuEditorPage() {
     if (editedItem.preparationTime != null)
       form.append("preparationTime", String(editedItem.preparationTime));
     form.append("isAvailable", String(editedItem.isAvailable ?? true));
+    form.append("hasSpiceLevels", String(editedItem.hasSpiceLevels ?? false)); // Added
     if (editedItem.imageFile) {
       form.append("image", editedItem.imageFile);
     }
@@ -403,6 +406,7 @@ export default function MenuEditorPage() {
         isAvailable: normalizeBool(o.is_available ?? o.isAvailable),
         isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian),
         preparationTime: o.preparation_time ?? o.preparationTime ?? null,
+        hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels), // Added
       };
 
       if (isUpdating) {
@@ -632,6 +636,24 @@ export default function MenuEditorPage() {
                 <SelectItem value="eggitarian">Eggitarian (Yellow)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          {/* Spice Levels Toggle */}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="hasSpiceLevels" className="text-right">
+              Spice Customization
+            </Label>
+            <div className="col-span-3 flex items-center">
+              <Switch
+                id="hasSpiceLevels"
+                checked={editedItem.hasSpiceLevels ?? false}
+                onCheckedChange={(v) =>
+                  setEditedItem({ ...editedItem, hasSpiceLevels: !!v })
+                }
+              />
+              <span className="ml-2 text-xs text-muted-foreground">
+                (Allows choosing Mild, Regular, Spicy, Tangy)
+              </span>
+            </div>
           </div>
           {/* Available Toggle */}
           <div className="grid grid-cols-4 items-center gap-4">
