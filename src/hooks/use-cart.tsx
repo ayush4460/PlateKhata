@@ -117,6 +117,7 @@ interface CartContextType {
   setRestaurantSlug: (slug: string) => void;
   tableToken: string | null;
   setTableToken: (token: string) => void;
+  updateSessionTotal: (sessionId: string, newTotal: number) => Promise<void>;
 }
 
 // Create the context
@@ -1490,6 +1491,48 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [toast, fetchTables]
   );
 
+  const updateSessionTotal = useCallback(
+    async (sessionId: string, newTotal: number) => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/orders/session/${sessionId}/total`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders(),
+            },
+            body: JSON.stringify({ total: newTotal }),
+          }
+        );
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || "Failed to update total");
+        }
+
+        // Refresh orders to show new calculations
+        fetchRelevantOrders();
+
+        toast({
+          title: "Total Updated",
+          description: `Session total has been overridden to ₹${newTotal.toFixed(
+            2
+          )}`,
+        });
+      } catch (err) {
+        console.error("[useCart] Failed to update session total:", err);
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: (err as Error).message,
+        });
+        throw err;
+      }
+    },
+    [fetchRelevantOrders, toast]
+  );
+
   // --- Analytics Calculation (Local - admin only) ---
   const analytics = useMemo(() => {
     if (!hasAuthToken() || !Array.isArray(pastOrders)) {
@@ -1629,6 +1672,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           setTableTokenState(token);
           writeToStorage("tableToken", token);
         },
+        updateSessionTotal,
       }}
     >
       {children}
