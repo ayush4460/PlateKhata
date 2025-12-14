@@ -1,6 +1,14 @@
-// src/components/dashboard/recent-orders.tsx
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+// I will split this into two calls or use multi_replace.
+// I'll use multi_replace.
 import {
   Table,
   TableBody,
@@ -62,6 +70,7 @@ import {
 import type { DateRange } from "react-day-picker";
 import type { PastOrder } from "@/lib/types";
 import * as XLSX from "xlsx";
+import { useToast } from "@/hooks/use-toast";
 
 // Sub-component for the expanded session details
 function SessionDetails({
@@ -239,12 +248,13 @@ function SessionDetails({
 }
 
 export function RecentOrders() {
+  const { toast } = useToast();
   const {
     pastOrders,
     approvePayment,
+    updatePaymentMethod,
     cancelOrder,
     updateSessionTotal,
-    toast,
     setOrderFilters,
   } = useCart();
   const [orderToDelete, setOrderToDelete] = useState<PastOrder | null>(null);
@@ -443,6 +453,33 @@ export function RecentOrders() {
         const latestOrder = group[0];
         const regularOrder = group.find((o) => o.orderType === "regular");
 
+        // Find effective payment status and method (Prioritize Approved > Requested > Latest)
+        let effectivePaymentStatus = latestOrder.paymentStatus;
+        let effectivePaymentMethod = (latestOrder as any).paymentMethod;
+        let effectivePaymentMethodId = latestOrder.id; // Initialize with latest ID
+
+        const approvedOrder = group.find((o) => o.paymentStatus === "Approved");
+        const requestedOrder = group.find(
+          (o) => o.paymentStatus === "Requested"
+        );
+        // Fallback: find any order with a method if current is null
+        const anyMethodOrder = group.find((o) => (o as any).paymentMethod);
+
+        if (approvedOrder) {
+          effectivePaymentStatus = "Approved";
+          effectivePaymentMethod = (approvedOrder as any).paymentMethod;
+        } else if (requestedOrder) {
+          // Only override if not already approved
+          if (effectivePaymentStatus !== "Approved") {
+            effectivePaymentStatus = "Requested";
+            effectivePaymentMethod = (requestedOrder as any).paymentMethod;
+            effectivePaymentMethodId = requestedOrder.id; // Set ID from requested order
+          }
+        } else if (!effectivePaymentMethod && anyMethodOrder) {
+          effectivePaymentMethod = (anyMethodOrder as any).paymentMethod;
+          effectivePaymentMethodId = anyMethodOrder.id; // Added ID here
+        }
+
         return {
           key:
             (latestOrder as any).sessionId ||
@@ -453,8 +490,9 @@ export function RecentOrders() {
           userName: latestOrder.userName,
           userPhone: latestOrder.userPhone,
           status: latestOrder.status,
-          paymentStatus: latestOrder.paymentStatus,
-          paymentMethod: (latestOrder as any).paymentMethod,
+          paymentStatus: effectivePaymentStatus,
+          paymentMethod: effectivePaymentMethod,
+          paymentMethodId: effectivePaymentMethodId, // Exposed ID
           total: total,
           subtotal: subtotal,
           tax: tax,
@@ -681,7 +719,7 @@ export function RecentOrders() {
                             {group.status.toLowerCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex flex-col gap-1">
                             <Badge
                               variant={
@@ -693,10 +731,40 @@ export function RecentOrders() {
                             >
                               {group.paymentStatus}
                             </Badge>
-                            {group.paymentMethod && (
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                                {group.paymentMethod}
-                              </span>
+
+                            {/* Editable Payment Method for Approved/Requested orders */}
+                            {group.paymentStatus === "Approved" ||
+                            group.paymentStatus === "Requested" ? (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Select
+                                  defaultValue={group.paymentMethod}
+                                  onValueChange={(val) =>
+                                    updatePaymentMethod(
+                                      group.paymentMethodId,
+                                      val,
+                                      "Approved"
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="h-6 w-[100px] text-[10px] p-1">
+                                    <SelectValue
+                                      placeholder={
+                                        group.paymentMethod || "Select"
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Cash">CASH</SelectItem>
+                                    <SelectItem value="UPI">UPI</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              group.paymentMethod && (
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  {group.paymentMethod}
+                                </span>
+                              )
                             )}
                           </div>
                         </TableCell>

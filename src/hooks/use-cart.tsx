@@ -83,8 +83,13 @@ interface CartContextType {
     to: KitchenStatus
   ) => void;
   requestPayment: (orderId: string, method: "Cash" | "UPI") => Promise<void>;
-  approvePayment: (orderId: string) => void;
-  cancelOrder: (orderId: string) => void;
+  approvePayment: (orderId: string) => Promise<void>;
+  updatePaymentMethod: (
+    orderId: string,
+    method: string,
+    status?: string
+  ) => Promise<void>;
+  cancelOrder: (orderId: string) => Promise<void>;
   taxRate: number;
   discountRate: number;
   upiId: string;
@@ -1342,6 +1347,36 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [toast, fetchRelevantOrders]
   );
 
+  const updatePaymentMethod = useCallback(
+    async (orderId: string, method: string, status: string = "Approved") => {
+      if (!hasAuthToken()) return;
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}/payment`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            paymentStatus: status,
+            paymentMethod: method,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to update payment method");
+
+        fetchRelevantOrders();
+        toast({
+          title: "Payment Updated",
+          description: `Method set to ${method}`,
+        });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: "Could not update payment method.",
+        });
+      }
+    },
+    [toast, fetchRelevantOrders]
+  );
+
   const cancelOrder = useCallback(
     async (orderId: string) => {
       const isAdminUser = hasAuthToken();
@@ -1653,6 +1688,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         updateKitchenOrderStatus,
         requestPayment,
         approvePayment,
+        updatePaymentMethod,
         cancelOrder,
         taxRate,
         discountRate,
