@@ -143,6 +143,12 @@ export default function MenuEditorPage() {
           imageId: o.imageId ?? "",
           isAvailable: normalizeBool(o.is_available ?? o.isAvailable),
           isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian),
+          dietaryType:
+            o.dietary_type ||
+            o.dietaryType ||
+            (normalizeBool(o.is_vegetarian ?? o.isVegetarian)
+              ? "veg"
+              : "non_veg"),
           preparationTime: o.preparation_time ?? o.preparationTime ?? null,
         }));
         if (!cancelled) {
@@ -330,7 +336,14 @@ export default function MenuEditorPage() {
     // form.append('category', String(editedItem.category)); // Legacy string
     if (editedItem.categoryId)
       form.append("categoryId", String(editedItem.categoryId)); // Dynamic ID
-    form.append("isVegetarian", String(!!editedItem.isVegetarian));
+
+    // Send dietaryType (Backend handles sync with isVegetarian)
+    form.append(
+      "dietaryType",
+      editedItem.dietaryType || (editedItem.isVegetarian ? "veg" : "non_veg")
+    );
+    form.append("isVegetarian", String(editedItem.dietaryType === "veg"));
+
     if (editedItem.preparationTime != null)
       form.append("preparationTime", String(editedItem.preparationTime));
     form.append("isAvailable", String(editedItem.isAvailable ?? true));
@@ -592,20 +605,33 @@ export default function MenuEditorPage() {
               placeholder="Optional"
             />
           </div>
-          {/* Vegetarian Toggle */}
+          {/* Dietary Type Select */}
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="isVegetarian" className="text-right">
-              Vegetarian
+            <Label htmlFor="dietaryType" className="text-right">
+              Dietary Type
             </Label>
-            <div className="col-span-3 flex items-center">
-              <Switch
-                id="isVegetarian"
-                checked={!!editedItem.isVegetarian}
-                onCheckedChange={(v) =>
-                  setEditedItem({ ...editedItem, isVegetarian: !!v })
-                }
-              />
-            </div>
+            <Select
+              value={
+                editedItem.dietaryType ||
+                (editedItem.isVegetarian ? "veg" : "non_veg")
+              }
+              onValueChange={(val: "veg" | "non_veg" | "eggitarian") =>
+                setEditedItem({
+                  ...editedItem,
+                  dietaryType: val,
+                  isVegetarian: val === "veg",
+                })
+              }
+            >
+              <SelectTrigger id="dietaryType" className="col-span-3">
+                <SelectValue placeholder="Select dietary type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="veg">Vegetarian (Green)</SelectItem>
+                <SelectItem value="non_veg">Non-Vegetarian (Red)</SelectItem>
+                <SelectItem value="eggitarian">Eggitarian (Yellow)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {/* Available Toggle */}
           <div className="grid grid-cols-4 items-center gap-4">

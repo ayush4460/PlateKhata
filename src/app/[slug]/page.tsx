@@ -278,6 +278,12 @@ function MenuContent() {
             o.is_vegetarian === "true" ||
             Number(o.is_vegetarian) === 1;
 
+          // Resolve dietary type
+          const dietaryType =
+            o.dietary_type ||
+            o.dietaryType ||
+            (isVegetarian ? "veg" : "non_veg");
+
           return {
             id,
             name: String(o.name ?? "Unnamed"),
@@ -287,6 +293,7 @@ function MenuContent() {
             image: { url: imageUrl, hint: "" },
             isAvailable,
             isVegetarian,
+            dietaryType, // Mapped
             preparationTime: o.preparation_time ?? o.preparationTime ?? null,
           } as MenuItem;
         });
@@ -457,8 +464,12 @@ function MenuContent() {
                     className="aspect-square w-full object-cover"
                   />
 
-                  {/* --- VEG/NON-VEG BADGE --- */}
-                  {item.isVegetarian ? (
+                  {/* --- DIETARY BADGE --- */}
+                  {item.dietaryType === "eggitarian" ? (
+                    <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
+                      <Circle className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    </Badge>
+                  ) : item.isVegetarian || item.dietaryType === "veg" ? (
                     <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
                       <Circle className="h-4 w-4 text-green-600 fill-green-600" />
                     </Badge>
@@ -522,7 +533,12 @@ function MenuContent() {
                   className="object-cover"
                 />
 
-                {selectedItem.isVegetarian ? (
+                {selectedItem.dietaryType === "eggitarian" ? (
+                  <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
+                    <Circle className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  </Badge>
+                ) : selectedItem.isVegetarian ||
+                  selectedItem.dietaryType === "veg" ? (
                   <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
                     <Circle className="h-4 w-4 text-green-600 fill-green-600" />
                   </Badge>

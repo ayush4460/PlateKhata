@@ -14,6 +14,7 @@ export interface MenuItem {
   categoryId?: number; // Added for dynamic categories support
   isAvailable: boolean;
   isVegetarian: boolean;
+  dietaryType?: 'veg' | 'non_veg' | 'eggitarian'; // Added
   preparationTime: number | null;
   imageId?: string;
 }
@@ -65,7 +66,7 @@ export interface PastOrder {
   tableNumber: string;
   date: string;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Ready' | 'Served' | 'Completed' | 'Cancelled';
-  paymentStatus: 'Pending' | 'Approved';
+  paymentStatus: 'Pending' | 'Approved' | 'Requested';
   paymentMethod?: string;
   total: number;
   subtotal: number;
