@@ -38,7 +38,10 @@ import {
   Calendar as CalendarIcon,
   Filter,
   Download,
+  Printer,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -323,6 +326,126 @@ export function RecentOrders() {
         endDate: range.to
           ? format(range.to, "yyyy-MM-dd")
           : format(range.from, "yyyy-MM-dd"),
+      });
+    }
+  };
+
+  const handleDownloadBill = (group: any) => {
+    try {
+      // 1. Consolidate Items
+      const allItems = group.orders.flatMap((order: PastOrder) =>
+        order.items.map((item) => ({
+          ...item,
+          orderId: order.id,
+          orderType: order.orderType,
+        }))
+      );
+
+      // 2. Setup PDF (Thermal Receipt size: 80mm width, dynamic height approx 200mm start)
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [80, 2000], // Long strip for roll paper simulation
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 5;
+      const contentWidth = pageWidth - margin * 2;
+      let yPos = 10;
+
+      // Unmount logic to check if we can reduce height at the end? jsPDF doesn't resize easily.
+      // We'll proceed with standard thermal layout.
+
+      // 3. Header
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("MuchMate Restaurant", pageWidth / 2, yPos, { align: "center" });
+      yPos += 5;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text("Original Recipe of Taste", pageWidth / 2, yPos, {
+        align: "center",
+      });
+      yPos += 7;
+
+      doc.text(`Date: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, margin, yPos);
+      yPos += 4;
+      doc.text(`Table: ${group.tableNumber}`, margin, yPos);
+      doc.text(`Bill No: ${group.key.slice(0, 8)}`, pageWidth - margin, yPos, {
+        align: "right",
+      });
+      yPos += 6;
+
+      // 4. Items Table
+      const tableHeaders = [["Item", "Qty", "Price", "Amt"]];
+      const tableBody = allItems.map((item: any) => [
+        item.name.substring(0, 15) + (item.name.length > 15 ? "..." : ""), // Truncate name
+        item.quantity.toString(),
+        item.price.toFixed(2),
+        (item.price * item.quantity).toFixed(2),
+      ]);
+
+      autoTable(doc, {
+        head: tableHeaders,
+        body: tableBody,
+        startY: yPos,
+        theme: "plain", // Minimalist for thermal
+        styles: { fontSize: 8, cellPadding: 1, overflow: "linebreak" },
+        headStyles: { fontStyle: "bold", borderBottomWidth: 0.5, lineColor: 0 },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 10, halign: "center" },
+          2: { cellWidth: 15, halign: "right" },
+          3: { cellWidth: 15, halign: "right" },
+        },
+        margin: { left: margin, right: margin },
+        didDrawPage: (data) => {
+          yPos = data.cursor.y;
+        },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 5;
+
+      // 5. Totals
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+
+      const addLine = (label: string, value: string) => {
+        doc.text(label, pageWidth - margin - 35, yPos); // Label x-pos
+        doc.text(value, pageWidth - margin, yPos, { align: "right" }); // Value x-pos
+        yPos += 4;
+      };
+
+      addLine("Subtotal:", group.subtotal.toFixed(2));
+      addLine("Tax:", group.tax.toFixed(2));
+      if (group.discount > 0) {
+        addLine("Discount:", `-${group.discount.toFixed(2)}`);
+      }
+
+      // Divider
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 5;
+
+      doc.setFontSize(10);
+      addLine("TOTAL:", `Rs ${group.total.toFixed(2)}`);
+
+      yPos += 2;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Mode: ${group.paymentMethod || "Pending"}`, margin, yPos);
+
+      yPos += 10;
+      doc.text("*** Thank You ***", pageWidth / 2, yPos, { align: "center" });
+
+      // 6. Save
+      doc.save(`Bill_${group.tableNumber}_${group.key.slice(0, 6)}.pdf`);
+    } catch (e) {
+      console.error("Download failed", e);
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: "Could not generate bill PDF",
       });
     }
   };
@@ -689,6 +812,14 @@ export function RecentOrders() {
                         style={{ cursor: "pointer" }}
                       >
                         <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownloadBill(group)}
+                            title="Download Bill"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
