@@ -28,6 +28,8 @@ import { SidebarLogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth"; // keep your existing hook path
+import { useCart } from "@/hooks/use-cart";
+import { Badge } from "@/components/ui/badge"; // Added Badge
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -48,9 +50,22 @@ export default function DashboardLayout({
   const router = useRouter();
 
   const { adminUser, isAuthLoading } = useAuth();
+  const { pastOrders } = useCart(); // Get orders
 
   // local check for stored session (avoid redirecting if tokens/user exist in storage)
   const [hasLocalSession, setHasLocalSession] = useState<boolean | null>(null);
+
+  // Calculate payment requests
+  const paymentRequestCount = pastOrders.reduce((count, order) => {
+    // Check if this is a unique session or order request
+    // We count individual orders that are 'Requested'
+    if (order.paymentStatus === "Requested") {
+      return count + 1;
+    }
+    return count;
+    // Note: If you want to group by session, you'd need more complex logic,
+    // but usually showing total "items/tables" requesting is fine.
+  }, 0);
 
   useEffect(() => {
     // check localStorage for session presence on client side
@@ -116,20 +131,48 @@ export default function DashboardLayout({
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu className="gap-2 p-2">
-            {menuItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === item.href}
-                  className="h-10 justify-start"
-                >
-                  <Link href={item.href}>
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {menuItems.map((item) => {
+              const isOrders = item.label === "Orders";
+              const showBadge = isOrders && paymentRequestCount > 0;
+
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href}
+                    className={
+                      showBadge
+                        ? "text-red-500 font-bold hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        : "h-10 justify-start"
+                    }
+                  >
+                    <Link
+                      href={item.href}
+                      className="flex justify-between w-full"
+                    >
+                      <div className="flex items-center gap-2">
+                        <item.icon
+                          className={
+                            showBadge
+                              ? "h-5 w-5 text-red-500 animate-pulse"
+                              : "h-5 w-5"
+                          }
+                        />
+                        {item.label}
+                      </div>
+                      {showBadge && (
+                        <Badge
+                          variant="destructive"
+                          className="ml-auto h-5 min-w-5 flex items-center justify-center px-1"
+                        >
+                          {paymentRequestCount}
+                        </Badge>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
             <SidebarMenuItem>
               <SidebarLogoutButton />
             </SidebarMenuItem>
