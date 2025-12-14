@@ -31,8 +31,12 @@ import {
   isWithinInterval,
   format,
   eachDayOfInterval,
+  eachHourOfInterval,
+  eachMonthOfInterval,
   startOfToday,
   endOfToday,
+  startOfYear,
+  endOfYear,
   formatDistanceToNow,
   parseISO,
 } from "date-fns";
@@ -1643,32 +1647,66 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const approvedOrders = pastOrders.filter(
       (o) => o.paymentStatus === "Approved"
     );
-    const interval = {
-      start: startOfWeek(now, { weekStartsOn: 1 }),
-      end: endOfWeek(now, { weekStartsOn: 1 }),
-    };
 
-    const weekOrders = approvedOrders.filter((o) =>
+    let interval: { start: Date; end: Date };
+    let formatKey = "E"; // Default day representation
+    let dateData: Record<string, number> = {};
+
+    if (analyticsPeriod === "daily") {
+      interval = { start: startOfToday(), end: endOfToday() };
+      formatKey = "HH:00";
+      try {
+        dateData = eachHourOfInterval(interval).reduce(
+          (acc, hour) => ({ ...acc, [format(hour, "HH:00")]: 0 }),
+          {}
+        );
+      } catch (e) {
+        // Fallback if interval is invalid
+        dateData = {};
+      }
+    } else if (analyticsPeriod === "weekly") {
+      interval = {
+        start: startOfWeek(now, { weekStartsOn: 1 }),
+        end: endOfWeek(now, { weekStartsOn: 1 }),
+      };
+      formatKey = "E";
+      dateData = eachDayOfInterval(interval).reduce(
+        (acc, day) => ({ ...acc, [format(day, "E")]: 0 }),
+        {}
+      );
+    } else if (analyticsPeriod === "monthly") {
+      interval = { start: startOfMonth(now), end: endOfMonth(now) };
+      formatKey = "d";
+      dateData = eachDayOfInterval(interval).reduce(
+        (acc, day) => ({ ...acc, [format(day, "d")]: 0 }),
+        {}
+      );
+    } else {
+      // All Time defaults to current year view
+      interval = { start: startOfYear(now), end: endOfYear(now) };
+      formatKey = "MMM";
+      dateData = eachMonthOfInterval(interval).reduce(
+        (acc, month) => ({ ...acc, [format(month, "MMM")]: 0 }),
+        {}
+      );
+    }
+
+    const filteredOrders = approvedOrders.filter((o) =>
       isWithinInterval(new Date(o.date), interval)
     );
 
-    const dailySales = eachDayOfInterval(interval).reduce(
-      (acc, day) => ({ ...acc, [format(day, "E")]: 0 }),
-      {} as Record<string, number>
-    );
-
-    weekOrders.forEach((order) => {
-      const dayKey = format(new Date(order.date), "E");
-      if (dailySales[dayKey] !== undefined) {
-        dailySales[dayKey] += order.total;
+    filteredOrders.forEach((order) => {
+      const key = format(new Date(order.date), formatKey);
+      if (dateData[key] !== undefined) {
+        dateData[key] += order.total;
       }
     });
 
-    return Object.entries(dailySales).map(([name, sales]) => ({
+    return Object.entries(dateData).map(([name, sales]) => ({
       name,
       sales: Math.round(sales),
     }));
-  }, [pastOrders]);
+  }, [pastOrders, analyticsPeriod]);
 
   // --- Provide State and Actions through Context ---
   return (
