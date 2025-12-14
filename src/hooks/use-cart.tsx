@@ -118,6 +118,8 @@ interface CartContextType {
   tableToken: string | null;
   setTableToken: (token: string) => void;
   updateSessionTotal: (sessionId: string, newTotal: number) => Promise<void>;
+  orderFilters: { startDate?: string; endDate?: string };
+  setOrderFilters: (filters: { startDate?: string; endDate?: string }) => void;
 }
 
 // Create the context
@@ -259,6 +261,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     null
   );
   const [tableToken, setTableTokenState] = useState<string | null>(null);
+  const [orderFilters, setOrderFilters] = useState<{
+    startDate?: string;
+    endDate?: string;
+  }>({});
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -529,6 +535,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           "cancelled",
         ].forEach((s) => queryParams.push(`status=${s}`));
         queryParams.push("limit=200");
+
+        // Add Date Filters if present
+        if (orderFilters.startDate)
+          queryParams.push(`startDate=${orderFilters.startDate}`);
+        if (orderFilters.endDate)
+          queryParams.push(`endDate=${orderFilters.endDate}`);
+
         url = `${API_BASE}/orders?${queryParams.join("&")}`;
 
         Object.assign(headers, authHeaders());
@@ -616,7 +629,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setPastOrders([]);
       }
     },
-    [sessionToken, tableNumber, toast]
+    [sessionToken, tableNumber, toast, orderFilters, pathname]
   );
 
   useEffect(() => {
@@ -1672,7 +1685,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           setTableTokenState(token);
           writeToStorage("tableToken", token);
         },
+
         updateSessionTotal,
+        orderFilters,
+        setOrderFilters,
       }}
     >
       {children}

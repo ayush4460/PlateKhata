@@ -1,6 +1,6 @@
 // src/components/dashboard/recent-orders.tsx
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -9,13 +9,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/use-cart";
-import { Trash2, ChevronRight, ChevronDown, Check, X } from "lucide-react";
+import {
+  Trash2,
+  ChevronRight,
+  ChevronDown,
+  Check,
+  X,
+  Calendar as CalendarIcon,
+  Filter,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +40,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  format,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfToday,
+  endOfToday,
+  startOfYesterday,
+  endOfYesterday,
+} from "date-fns";
+import type { DateRange } from "react-day-picker";
 import type { PastOrder } from "@/lib/types";
 
 // Sub-component for the expanded session details
@@ -63,8 +96,6 @@ function SessionDetails({
 
   const calculatedOriginal = group.subtotal + group.tax;
   const variance = calculatedOriginal - group.total;
-  // If variance is positive, it means there is a discount (or adjustment downwards)
-  // If variance is negative, it means surcharge (total > sub+tax)
 
   return (
     <div className="p-4 bg-muted/20 border-t shadow-inner">
@@ -206,12 +237,87 @@ function SessionDetails({
 }
 
 export function RecentOrders() {
-  const { pastOrders, approvePayment, cancelOrder, updateSessionTotal, toast } =
-    useCart();
+  const {
+    pastOrders,
+    approvePayment,
+    cancelOrder,
+    updateSessionTotal,
+    toast,
+    setOrderFilters,
+  } = useCart();
   const [orderToDelete, setOrderToDelete] = useState<PastOrder | null>(null);
   const [expandedSessions, setExpandedSessions] = useState<
     Record<string, boolean>
   >({});
+
+  // Date Filtering State
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfToday(),
+    to: endOfToday(),
+  });
+  const [activeFilter, setActiveFilter] = useState<string>("today");
+
+  // Initial Filter Application
+  useEffect(() => {
+    // Apply default "Today" filter on mount
+    // We do this to ensure we show today's orders by default as requested
+    const from = format(startOfToday(), "yyyy-MM-dd");
+    const to = format(endOfToday(), "yyyy-MM-dd");
+    setOrderFilters({ startDate: from, endDate: to });
+  }, []);
+
+  const handlePresetChange = (preset: string) => {
+    setActiveFilter(preset);
+    let from, to;
+    const now = new Date();
+
+    switch (preset) {
+      case "today":
+        from = startOfToday();
+        to = endOfToday();
+        break;
+      case "yesterday":
+        from = startOfYesterday();
+        to = endOfYesterday();
+        break;
+      case "week":
+        from = startOfWeek(now, { weekStartsOn: 1 });
+        to = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case "month":
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      // "Tomorrow" or custom future logic if strictly needed, but usually ranges handle it
+      default:
+        return;
+    }
+
+    setDateRange({ from, to });
+    if (from) {
+      setOrderFilters({
+        startDate: format(from, "yyyy-MM-dd"),
+        endDate: to ? format(to, "yyyy-MM-dd") : format(from, "yyyy-MM-dd"),
+      });
+    }
+  };
+
+  const handleCalendarSelect = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setActiveFilter("custom");
+
+    if (range?.from) {
+      setOrderFilters({
+        startDate: format(range.from, "yyyy-MM-dd"),
+        endDate: range.to
+          ? format(range.to, "yyyy-MM-dd")
+          : format(range.from, "yyyy-MM-dd"),
+      });
+    } else {
+      // Clear filters if no range (or show all? better to keep at least something or clear)
+      // setOrderFilters({});
+    }
+  };
 
   // Group orders by session_id
   const groupedOrders = useMemo(() => {
@@ -263,6 +369,7 @@ export function RecentOrders() {
         };
       })
       .sort((a, b) => {
+        // Sort sessions by latest order
         return (
           new Date(b.orders[0].date).getTime() -
           new Date(a.orders[0].date).getTime()
@@ -311,21 +418,6 @@ export function RecentOrders() {
     updateSessionTotal(sessionId, newTotal);
   };
 
-  if (pastOrders.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-center py-8">
-            No active orders
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <>
       <AlertDialog
@@ -333,118 +425,209 @@ export function RecentOrders() {
         onOpenChange={(isOpen) => !isOpen && setOrderToDelete(null)}
       >
         <Card>
-          <CardHeader>
-            <CardTitle>Active Sessions ({groupedOrders.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>Table</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead className="text-right">Session Total</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupedOrders.map((group) => (
-                  <React.Fragment key={group.key}>
-                    {/* PARENT ROW */}
-                    <TableRow
-                      className={cn(
-                        "hover:bg-muted/40 transition-colors",
-                        expandedSessions[group.key] && "bg-muted/40 border-b-0"
-                      )}
-                      onClick={() => toggleExpand(group.key)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleExpand(group.key);
-                          }}
-                        >
-                          {expandedSessions[group.key] ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="font-bold">
-                        Table {group.tableNumber}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{group.userName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {group.userPhone}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {group.status.toLowerCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge
-                            variant={
-                              group.paymentStatus === "Approved"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="w-fit"
-                          >
-                            {group.paymentStatus}
-                          </Badge>
-                          {group.paymentMethod && (
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                              {group.paymentMethod}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        ₹{group.total.toFixed(2)}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {(group.paymentStatus === "Pending" ||
-                          group.paymentStatus === "Requested") &&
-                          (group.status.toLowerCase() === "ready" ||
-                            group.status.toLowerCase() === "served") && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => approvePayment(group.latestId)}
-                            >
-                              Approve Payment
-                            </Button>
-                          )}
-                      </TableCell>
-                    </TableRow>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div className="space-y-1">
+              <CardTitle>Orders & Sessions ({groupedOrders.length})</CardTitle>
+              <CardDescription>
+                {activeFilter === "today" && "Showing orders for today"}
+                {activeFilter === "yesterday" && "Showing orders for yesterday"}
+                {activeFilter === "week" && "Showing orders for this week"}
+                {activeFilter === "month" && "Showing orders for this month"}
+                {activeFilter === "custom" &&
+                  dateRange?.from &&
+                  `Showing orders from ${format(
+                    dateRange.from,
+                    "MMM dd, yyyy"
+                  )}` +
+                    (dateRange.to
+                      ? ` to ${format(dateRange.to, "MMM dd, yyyy")}`
+                      : "")}
+              </CardDescription>
+            </div>
 
-                    {/* EXPANDED DETAILS */}
-                    {expandedSessions[group.key] && (
-                      <TableRow className="bg-muted/10">
-                        <TableCell colSpan={7} className="p-0">
-                          <SessionDetails
-                            group={group}
-                            onUpdateTotal={handleUpdateTotal}
-                          />
+            {/* Filter Controls */}
+            <div className="flex items-center space-x-2 bg-muted/30 p-1 rounded-lg">
+              <Button
+                variant={activeFilter === "today" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handlePresetChange("today")}
+                className="h-8 text-xs"
+              >
+                Today
+              </Button>
+              <Button
+                variant={activeFilter === "yesterday" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handlePresetChange("yesterday")}
+                className="h-8 text-xs"
+              >
+                Yesterday
+              </Button>
+              <Button
+                variant={activeFilter === "week" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handlePresetChange("week")}
+                className="h-8 text-xs"
+              >
+                This Week
+              </Button>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={
+                      activeFilter === "custom" ? "secondary" : "outline"
+                    }
+                    size="sm"
+                    className={cn(
+                      "h-8 text-xs justify-start text-left font-normal",
+                      !dateRange && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-3 w-3" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "LLL dd, y")} -{" "}
+                          {format(dateRange.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={handleCalendarSelect}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {pastOrders.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <p>No orders found for the selected period.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead>Table</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead className="text-right">Session Total</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupedOrders.map((group) => (
+                    <React.Fragment key={group.key}>
+                      {/* PARENT ROW */}
+                      <TableRow
+                        className={cn(
+                          "hover:bg-muted/40 transition-colors",
+                          expandedSessions[group.key] &&
+                            "bg-muted/40 border-b-0"
+                        )}
+                        onClick={() => toggleExpand(group.key)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpand(group.key);
+                            }}
+                          >
+                            {expandedSessions[group.key] ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell className="font-bold">
+                          Table {group.tableNumber}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{group.userName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {group.userPhone}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {group.status.toLowerCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge
+                              variant={
+                                group.paymentStatus === "Approved"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              className="w-fit"
+                            >
+                              {group.paymentStatus}
+                            </Badge>
+                            {group.paymentMethod && (
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                {group.paymentMethod}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          ₹{group.total.toFixed(2)}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {(group.paymentStatus === "Pending" ||
+                            group.paymentStatus === "Requested") &&
+                            (group.status.toLowerCase() === "ready" ||
+                              group.status.toLowerCase() === "served") && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => approvePayment(group.latestId)}
+                              >
+                                Approve Payment
+                              </Button>
+                            )}
                         </TableCell>
                       </TableRow>
-                    )}
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
+
+                      {/* EXPANDED DETAILS */}
+                      {expandedSessions[group.key] && (
+                        <TableRow className="bg-muted/10">
+                          <TableCell colSpan={7} className="p-0">
+                            <SessionDetails
+                              group={group}
+                              onUpdateTotal={handleUpdateTotal}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
