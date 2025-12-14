@@ -1579,7 +1579,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       (sum, order) => sum + order.total,
       0
     );
-    const newOrdersCount = periodOrders.length;
+
+    // Count unique sessions instead of total orders
+    const uniqueSessions = new Set(
+      periodOrders.map(
+        (o) => (o as any).sessionId || (o as any).session_id || o.id
+      )
+    ).size;
+    const newOrdersCount = uniqueSessions;
+
     const avgOrderValue =
       newOrdersCount > 0 ? totalRevenue / newOrdersCount : 0;
 
