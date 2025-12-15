@@ -33,7 +33,7 @@ import {
 } from "date-fns";
 
 export function SalesChart() {
-  const { salesData, analyticsPeriod } = useCart();
+  const { salesData, analyticsPeriod, paymentStats, pastOrders } = useCart(); // paymentStats added to hook
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
@@ -59,8 +59,9 @@ export function SalesChart() {
       "MMM d, yyyy"
     )}`;
 
+    // --- Title & Header ---
     doc.setFontSize(20);
-    doc.text("Sales Overview", 14, 22);
+    doc.text("Sales Report", 14, 22);
 
     doc.setFontSize(11);
     doc.text(
@@ -71,6 +72,10 @@ export function SalesChart() {
       30
     );
     doc.text(`Date Range: ${dateRangeStr}`, 14, 36);
+
+    // --- Section 1: Sales Overview (Existing) ---
+    doc.setFontSize(14);
+    doc.text("Sales Overview", 14, 46);
 
     const tableData = salesData.map((item) => [
       item.name,
@@ -90,7 +95,67 @@ export function SalesChart() {
           },
         ],
       ],
-      startY: 44,
+      startY: 50,
+      theme: "grid",
+    });
+
+    let currentY = (doc as any).lastAutoTable.finalY + 14;
+
+    // --- Section 2: Payment Method Summary ---
+    doc.setFontSize(14);
+    doc.text("Payment Method Summary", 14, currentY);
+    currentY += 4;
+
+    const paymentTableData = paymentStats.map((item) => [
+      item.name,
+      item.count,
+      `Rs. ${item.value.toFixed(2)}`,
+    ]);
+
+    autoTable(doc, {
+      head: [["Method", "Count", "Total Amount"]],
+      body: paymentTableData,
+      startY: currentY,
+      theme: "grid",
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 14;
+
+    // --- Section 3: Detailed Payment Logs ---
+    // Filter orders matching the period and approved status
+    // Note: Re-filtering here to ensure correct listing in PDF
+    const interval = { start, end };
+
+    // We can cast here because we know pastOrders is an array if we are here (from useCart check)
+    const approvedOrders = (pastOrders || []).filter(
+      (o) =>
+        o.paymentStatus === "Approved" &&
+        // @ts-ignore - isWithinInterval types can be tricky with string dates
+        new Date(o.date) >= start &&
+        new Date(o.date) <= end
+    );
+
+    doc.setFontSize(14);
+    doc.text("Detailed Payment Transactions", 14, currentY);
+    currentY += 4;
+
+    // Sort by date desc
+    const sortedOrders = approvedOrders.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    const transactionRows = sortedOrders.map((o) => [
+      format(new Date(o.date), "MMM d, HH:mm"),
+      o.orderNumber || o.id.slice(-6),
+      o.paymentMethod || "Unknown",
+      `Rs. ${o.total.toFixed(2)}`,
+    ]);
+
+    autoTable(doc, {
+      head: [["Date/Time", "Order #", "Method", "Amount"]],
+      body: transactionRows,
+      startY: currentY,
+      theme: "striped",
     });
 
     doc.save(`Sales_Report_${analyticsPeriod}_${format(now, "yyyyMMdd")}.pdf`);

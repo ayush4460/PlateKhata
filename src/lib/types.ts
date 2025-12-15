@@ -126,6 +126,12 @@ export interface TableStatus {
   status: 'Empty' | 'Occupied';
 }
 
+export interface PaymentStats {
+  name: string;
+  value: number;
+  count: number;
+}
+
 
 
 export type AnalyticsPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';

@@ -21,6 +21,7 @@ import type {
   TableStatus,
   AnalyticsPeriod,
   BackendOrder,
+  PaymentStats, // Added
 } from "@/lib/types";
 import { useToast } from "./use-toast";
 import {
@@ -107,6 +108,7 @@ interface CartContextType {
   setMenuItems: (items: MenuItem[]) => void;
   analytics: AnalyticsData;
   salesData: SalesData[];
+  paymentStats: PaymentStats[]; // Added
   isCartLoading: boolean;
   tableNumber: string | null;
   customerDetails: { name: string; phone: string } | null;
@@ -1712,6 +1714,51 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, [pastOrders, analyticsPeriod]);
 
+  // --- Payment Stats Calculation ---
+  const paymentStats = useMemo(() => {
+    if (!hasAuthToken() || !Array.isArray(pastOrders)) return [];
+
+    const now = new Date();
+    const approvedOrders = pastOrders.filter(
+      (o) => o.paymentStatus === "Approved"
+    );
+
+    const getPeriodInterval = (period: AnalyticsPeriod) => {
+      if (period === "daily")
+        return { start: startOfToday(), end: endOfToday() };
+      if (period === "weekly")
+        return {
+          start: startOfWeek(now, { weekStartsOn: 1 }),
+          end: endOfWeek(now, { weekStartsOn: 1 }),
+        };
+      if (period === "monthly")
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      return { start: startOfYear(now), end: endOfYear(now) };
+    };
+
+    const interval = getPeriodInterval(analyticsPeriod);
+    const periodOrders = approvedOrders.filter((o) =>
+      isWithinInterval(new Date(o.date), interval)
+    );
+
+    const stats: Record<string, { value: number; count: number }> = {};
+
+    periodOrders.forEach((order) => {
+      const method = order.paymentMethod || "Unknown";
+      if (!stats[method]) {
+        stats[method] = { value: 0, count: 0 };
+      }
+      stats[method].value += order.total;
+      stats[method].count += 1;
+    });
+
+    return Object.entries(stats).map(([name, data]) => ({
+      name,
+      value: data.value,
+      count: data.count,
+    }));
+  }, [pastOrders, analyticsPeriod]);
+
   // --- Provide State and Actions through Context ---
   return (
     <CartContext.Provider
@@ -1742,6 +1789,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setMenuItems,
         analytics,
         salesData,
+        paymentStats, // Added
         isCartLoading,
         tableNumber,
         setTable,
