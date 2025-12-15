@@ -44,6 +44,7 @@ export function PaymentPieChart({ data }: PaymentPieChartProps) {
               fill="#8884d8"
               paddingAngle={5}
               dataKey="value"
+              label={({ value }: { value: number }) => `₹${value.toFixed(2)}`}
             >
               {chartData.map((entry, index) => (
                 <Cell
