@@ -633,6 +633,7 @@ export function RecentOrders() {
           sessionId:
             (latestOrder as any).sessionId || (latestOrder as any).session_id,
           regularOrder: regularOrder,
+          platform: (latestOrder as any).platform, // Added
         };
       })
       .sort((a, b) => {
@@ -846,7 +847,23 @@ export function RecentOrders() {
                           </Button>
                         </TableCell>
                         <TableCell className="font-bold">
-                          Table {group.tableNumber}
+                          {group.platform ? (
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "text-white uppercase font-bold tracking-wider",
+                                group.platform.toLowerCase() === "zomato"
+                                  ? "bg-red-600 hover:bg-red-700"
+                                  : group.platform.toLowerCase() === "swiggy"
+                                  ? "bg-orange-500 hover:bg-orange-600"
+                                  : "bg-blue-600"
+                              )}
+                            >
+                              {group.platform}
+                            </Badge>
+                          ) : (
+                            <>Table {group.tableNumber}</>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="font-medium">{group.userName}</div>

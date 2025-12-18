@@ -21,7 +21,8 @@ type Order = {
     spiceLevel?: string | null; // Added
   }[];
   time: string;
-  orderType?: "regular" | "addon";
+  orderType?: "regular" | "addon" | "online";
+  platform?: string; // Added locally
 };
 
 interface OrderCardProps {
@@ -32,20 +33,38 @@ interface OrderCardProps {
 
 export function OrderCard({ order, onMoveOrder, actionText }: OrderCardProps) {
   const isAddon = order.orderType === "addon";
+  const isOnline = !!order.platform;
 
   return (
     <Card
       className={cn(
         "bg-background transition-all",
-        isAddon ? "border-orange-500 border-2 shadow-md" : ""
+        isAddon ? "border-orange-500 border-2 shadow-md" : "",
+        isOnline ? "border-blue-500/50" : ""
       )}
     >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base font-medium">
-              Table {order.table}
-            </CardTitle>
+            {order.platform ? (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-white uppercase font-bold tracking-wider",
+                  order.platform.toLowerCase() === "zomato"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : order.platform.toLowerCase() === "swiggy"
+                    ? "bg-orange-500 hover:bg-orange-600"
+                    : "bg-blue-600"
+                )}
+              >
+                {order.platform}
+              </Badge>
+            ) : (
+              <CardTitle className="text-base font-medium">
+                Table {order.table}
+              </CardTitle>
+            )}
 
             {isAddon && (
               <Badge

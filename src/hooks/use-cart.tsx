@@ -101,8 +101,12 @@ interface CartContextType {
   updateSettings: (
     tax: number,
     discount: number,
-    upiId: string
+    upiId: string,
+    zomatoId?: string,
+    swiggyId?: string
   ) => Promise<void>;
+  zomatoRestaurantId: string;
+  swiggyRestaurantId: string;
   setTaxRate: (rate: number) => Promise<void>;
   menuItems: MenuItem[];
   setMenuItems: (items: MenuItem[]) => void;
@@ -209,6 +213,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
     category: item.item_category,
     spiceLevel: item.spice_level, // Added
   })),
+  platform: order.external_platform, // Added
 });
 
 const mapBackendOrderToKitchenOrder = (
@@ -228,6 +233,7 @@ const mapBackendOrderToKitchenOrder = (
   status: order.order_status as any,
   created_at: order.created_at,
   orderType: order.order_type,
+  platform: order.external_platform, // Added
 });
 
 // Default empty analytics structure
@@ -255,10 +261,46 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [taxRate, setTaxRateState] = useState(0.0);
   const [discountRate, setDiscountRate] = useState(0.0);
   const [upiId, setUpiId] = useState("");
+  const [zomatoRestaurantId, setZomatoRestaurantId] = useState("");
+  const [swiggyRestaurantId, setSwiggyRestaurantId] = useState("");
   const router = useRouter();
   const [menuItems, setMenuItemsState] = useState<MenuItem[]>([]);
-  const [analyticsPeriod, setAnalyticsPeriod] =
-    useState<AnalyticsPeriod>("weekly");
+  const [analyticsPeriod, setAnalyticsPeriodState] =
+    useState<AnalyticsPeriod>("daily");
+
+  const setAnalyticsPeriod = useCallback((period: AnalyticsPeriod) => {
+    setAnalyticsPeriodState(period);
+
+    const now = new Date();
+    let start, end;
+
+    switch (period) {
+      case "daily":
+        start = startOfToday();
+        end = endOfToday();
+        break;
+      case "weekly":
+        start = startOfWeek(now, { weekStartsOn: 1 });
+        end = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case "monthly":
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+        break;
+      case "all-time":
+        // Fetch a wide range, e.g., current year or last 5 years
+        start = startOfYear(new Date(2023, 0, 1)); // Reasonable past date
+        end = endOfYear(now);
+        break;
+    }
+
+    if (start && end) {
+      setOrderFilters({
+        startDate: format(start, "yyyy-MM-dd"),
+        endDate: format(end, "yyyy-MM-dd"),
+      });
+    }
+  }, []);
   const [isCartLoading, setIsCartLoading] = useState(true);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [backendTables, setBackendTables] = useState<any[]>([]);
@@ -282,7 +324,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const fetchSettings = useCallback(async () => {
     try {
       const query = restaurantId ? `?restaurantId=${restaurantId}` : "";
-      const res = await fetch(`${API_BASE}/settings/public${query}`);
+      const res = await fetch(`${API_BASE}/settings/public${query}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+      });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const data = await res.json();
 
@@ -299,6 +346,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (typeof payload.upiId === "string") {
           setUpiId(payload.upiId);
           writeToStorage("upiId", payload.upiId);
+        }
+        if (typeof payload.zomatoRestaurantId === "string") {
+          setZomatoRestaurantId(payload.zomatoRestaurantId);
+        }
+        if (typeof payload.swiggyRestaurantId === "string") {
+          setSwiggyRestaurantId(payload.swiggyRestaurantId);
         }
       }
     } catch (err) {
@@ -811,12 +864,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const updateSettings = useCallback(
-    async (newTax: number, newDiscount: number, newUpiId: string) => {
+    async (
+      newTax: number,
+      newDiscount: number,
+      newUpiId: string,
+      newZomatoId?: string,
+      newSwiggyId?: string
+    ) => {
       if (!hasAuthToken()) return;
       // Update local state
       setTaxRateState(newTax);
       setDiscountRate(newDiscount);
       setUpiId(newUpiId);
+      if (newZomatoId !== undefined) setZomatoRestaurantId(newZomatoId);
+      if (newSwiggyId !== undefined) setSwiggyRestaurantId(newSwiggyId);
+
       writeToStorage("taxRate", newTax);
       writeToStorage("discountRate", newDiscount);
       writeToStorage("upiId", newUpiId);
@@ -826,14 +888,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           `[DEBUG] Saving settings: Tax=${newTax}, Discount=${newDiscount}, UPI=${newUpiId}`
         );
         // Call the new unified settings endpoint
+        const body: any = {
+          taxRate: newTax,
+          discountRate: newDiscount,
+          upiId: newUpiId,
+        };
+        if (newZomatoId !== undefined) body.zomatoRestaurantId = newZomatoId;
+        if (newSwiggyId !== undefined) body.swiggyRestaurantId = newSwiggyId;
+
         const res = await fetch(`${API_BASE}/settings`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            taxRate: newTax,
-            discountRate: newDiscount,
-            upiId: newUpiId,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!res.ok) {
@@ -1782,6 +1848,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         taxRate,
         discountRate,
         upiId,
+        zomatoRestaurantId,
+        swiggyRestaurantId,
         updateSettings,
         setTaxRate,
         customerDetails,

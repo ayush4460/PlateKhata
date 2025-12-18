@@ -21,7 +21,8 @@ import {
   ClipboardEdit,
   QrCode,
   Settings,
-  Tags, // Added
+  Tags,
+  Globe, // Added
 } from "lucide-react";
 import Link from "next/link";
 import { SidebarLogoutButton } from "@/components/auth/logout-button";
@@ -38,6 +39,7 @@ const menuItems = [
   { href: "/dashboard/menu-editor", label: "Menu", icon: ClipboardEdit },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart },
   { href: "/dashboard/qr-generator", label: "QR Codes", icon: QrCode },
+  { href: "/dashboard/online-orders", label: "Online Orders", icon: Globe },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

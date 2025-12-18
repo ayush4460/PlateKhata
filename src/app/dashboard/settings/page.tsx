@@ -20,14 +20,18 @@ export default function SettingsPage() {
     taxRate,
     discountRate,
     upiId,
+    zomatoRestaurantId,
+    swiggyRestaurantId,
     updateSettings,
-    isCartLoading, // reusing this loading state which initially fetches settings too
+    isCartLoading,
   } = useCart();
   const { toast } = useToast();
 
   const [localTax, setLocalTax] = useState("");
   const [localDiscount, setLocalDiscount] = useState("");
   const [localUpi, setLocalUpi] = useState("");
+  const [localZomato, setLocalZomato] = useState("");
+  const [localSwiggy, setLocalSwiggy] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync state when context loads
@@ -36,8 +40,17 @@ export default function SettingsPage() {
       setLocalTax(String(taxRate));
       setLocalDiscount(String(discountRate));
       setLocalUpi(upiId || "");
+      setLocalZomato(zomatoRestaurantId || "");
+      setLocalSwiggy(swiggyRestaurantId || "");
     }
-  }, [isCartLoading, taxRate, discountRate, upiId]);
+  }, [
+    isCartLoading,
+    taxRate,
+    discountRate,
+    upiId,
+    zomatoRestaurantId,
+    swiggyRestaurantId,
+  ]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +70,13 @@ export default function SettingsPage() {
     }
 
     try {
-      await updateSettings(t, d, localUpi.trim());
+      await updateSettings(
+        t,
+        d,
+        localUpi.trim(),
+        localZomato.trim(),
+        localSwiggy.trim()
+      );
       toast({
         title: "Settings Saved",
         description: "Store configuration updated successfully.",
@@ -140,6 +159,38 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 This ID will be used to generate QR codes for customer payments.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Online Ordering Config */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Online Ordering (Dyno Integration)</CardTitle>
+            <CardDescription>
+              Configure identification keys for food aggregators.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="zomatoId">Zomato Restaurant ID</Label>
+                <Input
+                  id="zomatoId"
+                  placeholder="Zomato ID"
+                  value={localZomato}
+                  onChange={(e) => setLocalZomato(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="swiggyId">Swiggy Restaurant ID</Label>
+                <Input
+                  id="swiggyId"
+                  placeholder="Swiggy ID"
+                  value={localSwiggy}
+                  onChange={(e) => setLocalSwiggy(e.target.value)}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -57,7 +57,9 @@ export interface BackendOrder {
   payment_method?: 'Cash' | 'UPI' | 'Card' | 'Other';
   created_at: string; // ISO date string
   items: BackendOrderItem[];
-  order_type: 'regular' | 'addon';
+  order_type: 'regular' | 'addon' | 'online';
+  external_platform?: string; // zomaoto, swiggy
+  external_outlet_id?: string;
 }
 
 // Past order structure used in user account
@@ -82,8 +84,9 @@ export interface PastOrder {
     price: number;
     spiceLevel?: string | null; // Added
   }[];
-  orderType?: 'regular' | 'addon';
+  orderType?: 'regular' | 'addon' | 'online';
   sessionId?: string;
+  platform?: string; // Added for UI
 }
 
 // Kitchen-facing order)
@@ -101,7 +104,8 @@ export interface KitchenOrder {
   time: string;
   status: 'confirmed' | 'preparing' | 'ready';
   created_at: string;
-  orderType: 'regular' | 'addon';
+  orderType: 'regular' | 'addon' | 'online';
+  platform?: string; // Added
 }
 
 // The state structure for the kitchen page
