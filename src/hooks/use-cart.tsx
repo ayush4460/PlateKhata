@@ -687,6 +687,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
             return true;
           });
+
+          // Capture tableId from the backend response to ensure socket room matches backend logic
+          if (orders.length > 0) {
+            const firstOrder = orders[0];
+            if (firstOrder.table_id) {
+              // Verify we are not resetting it unnecessarily (though setTableId is stable)
+              // casting to string
+              setTableId(String(firstOrder.table_id));
+            }
+          }
         }
 
         setPastOrders(filteredOrders.map(mapBackendOrderToPastOrder));
@@ -748,7 +758,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const handleNewOrder = (order: BackendOrder) => {
-      // console.log('[DEBUG SOCKET] Event "newOrder" received');
+      console.log('[DEBUG SOCKET] Event "newOrder" received', order);
       toast({
         title: "New Order!",
         description: `Table ${order?.table_id}`,
@@ -762,13 +772,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       status: string;
       tableId: string;
     }) => {
-      // console.log('[DEBUG SOCKET] Event "orderStatusUpdate" received');
+      console.log('[DEBUG SOCKET] Event "orderStatusUpdate" received', data);
       const friendlyStatus =
         data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      const tableMsg = data.tableId ? `Table ${data.tableId}` : "Your order";
       toast({
         title: "Order Update",
-        description: `Table ${data.tableId} is ${friendlyStatus}`,
+        description: `${tableMsg} is ${friendlyStatus}`,
       });
+      console.log("[DEBUG SOCKET] Triggering fetchRelevantOrders()");
       fetchRelevantOrders();
       if (hasAuthToken()) fetchKitchenOrders();
     };
@@ -779,6 +791,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const handleConnectError = (err: any) => {
       console.error("[DEBUG SOCKET] Socket connection error:", err.message);
+
+      // Recovery: If auth error, clear bad token and retry as guest
+      if (
+        err.message === "Authentication error" ||
+        err.message === "xhr poll error"
+      ) {
+        const token = localStorage.getItem("accessToken");
+        if (token) {
+          console.warn(
+            "[DEBUG SOCKET] Clearing invalid access token and retrying..."
+          );
+          localStorage.removeItem("accessToken");
+          // Force update auth payload for next attempt
+          if (socket) {
+            socket.auth = {};
+            socket.connect();
+          }
+        }
+      }
     };
 
     // Attach listeners
@@ -807,11 +838,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   // Join table room when socket and tableId are ready
   useEffect(() => {
-    if (socket && tableId && !hasAuthToken()) {
-      console.log("[DEBUG SOCKET] Joining table room:", tableId);
-      socket.emit("join:table", tableId);
+    // Use tableId if available, otherwise fallback to tableNumber (which is usually what customers have)
+    const targetTable = tableId || tableNumber;
+
+    if (socket && targetTable && !hasAuthToken()) {
+      console.log("[DEBUG SOCKET] Joining table room:", targetTable);
+      socket.emit("join:table", targetTable);
     }
-  }, [socket, tableId]);
+  }, [socket, tableId, tableNumber]);
 
   // --- Table Status Calculation  ---
   const tableStatuses = useMemo(() => {
@@ -1228,6 +1262,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           }
         } else {
           //console.warn('[DEBUG PLACE ORDER] No session_token found in response');
+        }
+
+        // Capture tableId from response if available (Corrects socket room if tableNumber != tableId)
+        if (data?.data?.order?.table_id) {
+          setTableId(String(data.data.order.table_id));
         }
 
         // Clear cart and show success
