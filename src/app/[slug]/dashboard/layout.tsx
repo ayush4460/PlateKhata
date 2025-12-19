@@ -45,7 +45,7 @@ export default function DashboardLayout({
   const slug = params?.slug as string;
 
   const { adminUser, isAuthLoading } = useAuth();
-  const { pastOrders } = useCart(); // Get orders
+  const { pastOrders, restaurantName } = useCart(); // Get orders and name
 
   const menuItems = [
     { href: `/${slug}/dashboard`, label: "Dashboard", icon: Home },
@@ -148,7 +148,7 @@ export default function DashboardLayout({
         <SidebarHeader>
           <div className="flex items-center gap-2 font-semibold text-lg p-2">
             <UtensilsCrossed className="h-6 w-6 text-primary" />
-            <span className="font-headline">Axios</span>
+            <span className="font-headline">{restaurantName || "Axios"}</span>
           </div>
         </SidebarHeader>
         <SidebarContent>

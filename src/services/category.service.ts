@@ -3,6 +3,10 @@ import { ApiClient } from './api.service';
 
 export const CategoryService = {
   getAll: async (restaurantId?: number): Promise<Category[]> => {
+    if (!restaurantId || isNaN(restaurantId)) {
+        console.warn("[CategoryService] getAll called without valid restaurantId");
+        return [];
+    }
     const query = restaurantId ? `?restaurantId=${restaurantId}` : '';
     const response = await ApiClient.get<any[]>(`/categories${query}`);
     // Map backend snake_case to frontend interface

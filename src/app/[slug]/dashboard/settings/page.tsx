@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -13,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, Save } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, Save, TriangleAlert } from "lucide-react";
 
 export default function SettingsPage() {
   const {
@@ -22,6 +24,10 @@ export default function SettingsPage() {
     upiId,
     zomatoRestaurantId,
     swiggyRestaurantId,
+    restaurantName,
+    restaurantAddress,
+    restaurantTagline,
+    contactEmail,
     updateSettings,
     isCartLoading,
   } = useCart();
@@ -32,6 +38,12 @@ export default function SettingsPage() {
   const [localUpi, setLocalUpi] = useState("");
   const [localZomato, setLocalZomato] = useState("");
   const [localSwiggy, setLocalSwiggy] = useState("");
+
+  const [localName, setLocalName] = useState("");
+  const [localAddress, setLocalAddress] = useState("");
+  const [localTagline, setLocalTagline] = useState("");
+  const [localEmail, setLocalEmail] = useState("");
+
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync state when context loads
@@ -42,6 +54,11 @@ export default function SettingsPage() {
       setLocalUpi(upiId || "");
       setLocalZomato(zomatoRestaurantId || "");
       setLocalSwiggy(swiggyRestaurantId || "");
+
+      setLocalName(restaurantName || "");
+      setLocalAddress(restaurantAddress || "");
+      setLocalTagline(restaurantTagline || "");
+      setLocalEmail(contactEmail || "");
     }
   }, [
     isCartLoading,
@@ -50,6 +67,10 @@ export default function SettingsPage() {
     upiId,
     zomatoRestaurantId,
     swiggyRestaurantId,
+    restaurantName,
+    restaurantAddress,
+    restaurantTagline,
+    contactEmail,
   ]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -75,7 +96,11 @@ export default function SettingsPage() {
         d,
         localUpi.trim(),
         localZomato.trim(),
-        localSwiggy.trim()
+        localSwiggy.trim(),
+        localName.trim(),
+        localAddress.trim(),
+        localEmail.trim(),
+        localTagline.trim()
       );
       toast({
         title: "Settings Saved",
@@ -92,16 +117,85 @@ export default function SettingsPage() {
     }
   };
 
+  const isNameChanged = localName.trim() !== (restaurantName || "").trim();
+
   return (
-    <div className="max-w-4xl mx-auto w-full">
+    <div className="max-w-4xl mx-auto w-full pb-20">
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Store Settings</h1>
         <p className="text-muted-foreground">
-          Configure tax rates, discounts, and payment details.
+          Manage your restaurant profile and configurations.
         </p>
       </div>
 
       <form onSubmit={handleSave} className="grid gap-6">
+        {/* Restaurant Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Restaurant Profile</CardTitle>
+            <CardDescription>
+              Basic information about your restaurant displayed to customers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isNameChanged && (
+              <Alert variant="destructive">
+                <TriangleAlert className="h-4 w-4" />
+                <AlertTitle>Warning: URL Change</AlertTitle>
+                <AlertDescription>
+                  Changing the restaurant name will update your unique URL slug.
+                  <strong>
+                    {" "}
+                    Existing QR codes and bookmarks will stop working.
+                  </strong>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Restaurant Name</Label>
+                <Input
+                  id="name"
+                  value={localName}
+                  onChange={(e) => setLocalName(e.target.value)}
+                  placeholder="e.g. Tasty Bites"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tagline">Tagline</Label>
+                <Input
+                  id="tagline"
+                  value={localTagline}
+                  onChange={(e) => setLocalTagline(e.target.value)}
+                  placeholder="e.g. Best Burgers in Town"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                value={localAddress}
+                onChange={(e) => setLocalAddress(e.target.value)}
+                placeholder="Full physical address"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Contact Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={localEmail}
+                onChange={(e) => setLocalEmail(e.target.value)}
+                placeholder="contact@restaurant.com"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Financial Configuration</CardTitle>
@@ -195,8 +289,13 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSaving || isCartLoading}>
+        <div className="flex justify-end sticky bottom-4">
+          <Button
+            type="submit"
+            disabled={isSaving || isCartLoading}
+            size="lg"
+            className="shadow-lg"
+          >
             {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

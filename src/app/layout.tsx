@@ -5,7 +5,6 @@ import { CartProvider } from "@/hooks/use-cart";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 
-
 export const metadata: Metadata = {
   title: "MunchMate",
   description: "Order food seamlessly from your table.",
@@ -30,19 +29,17 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased" suppressHydrationWarning>
         <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
         >
-            <AuthProvider>
-                <CartProvider>
-                    {children}
-                </CartProvider>
-            </AuthProvider>
-            <Toaster />
+          <AuthProvider>
+            <CartProvider>{children}</CartProvider>
+          </AuthProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

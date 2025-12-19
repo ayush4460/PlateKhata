@@ -81,6 +81,9 @@ export default function CategoriesPage() {
         await CategoryService.create({
           name: formData.name,
           display_order: formData.display_order,
+          restaurantId: adminUser?.restaurantId
+            ? Number(adminUser.restaurantId)
+            : undefined,
         });
         toast({ title: "Category created" });
       }

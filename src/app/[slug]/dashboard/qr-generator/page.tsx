@@ -20,32 +20,23 @@ import { PlusCircle, UtensilsCrossed, Trash2 } from "lucide-react";
 
 export default function QrGeneratorPage() {
   const [baseUrl, setBaseUrl] = useState("");
-  const [restaurantName, setRestaurantName] = useState("Axios");
-  const [tagline, setTagline] = useState("Scan, Order, Enjoy!");
   const [newTableNumber, setNewTableNumber] = useState("");
   const [newTableCapacity, setNewTableCapacity] = useState("");
 
-  const { tableStatuses, createTable, deleteTable } = useCart();
+  const {
+    tableStatuses,
+    createTable,
+    deleteTable,
+    restaurantName,
+    restaurantTagline,
+  } = useCart();
   const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setBaseUrl(window.location.origin);
-      const savedName = localStorage.getItem("qrRestaurantName");
-      const savedTagline = localStorage.getItem("qrTagline");
-      if (savedName) setRestaurantName(savedName);
-      if (savedTagline) setTagline(savedTagline);
     }
   }, []);
-
-  const handleSaveDetails = () => {
-    localStorage.setItem("qrRestaurantName", restaurantName);
-    localStorage.setItem("qrTagline", tagline);
-    toast({
-      title: "Details Saved",
-      description: "Your restaurant name and tagline have been updated.",
-    });
-  };
 
   const handleAddTable = async () => {
     const tableNumStr = newTableNumber.trim();
@@ -110,6 +101,9 @@ export default function QrGeneratorPage() {
     );
   }
 
+  const displayRestaurantName = restaurantName || "Axios";
+  const displayTagline = restaurantTagline || "Scan, Order, Enjoy!";
+
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 print:gap-4">
       <div className="print:hidden grid gap-4">
@@ -118,35 +112,6 @@ export default function QrGeneratorPage() {
           <Button onClick={handlePrint}>Print QR Codes</Button>
         </div>
         <div className="grid md:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Restaurant Details</CardTitle>
-              <CardDescription>
-                Customize the details shown on the QR code cards.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="restaurant-name">Restaurant Name</Label>
-                <Input
-                  id="restaurant-name"
-                  value={restaurantName}
-                  onChange={(e) => setRestaurantName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tagline">Tagline</Label>
-                <Input
-                  id="tagline"
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSaveDetails}>Save Details</Button>
-              </div>
-            </CardContent>
-          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Add New Table</CardTitle>
@@ -186,6 +151,23 @@ export default function QrGeneratorPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Usage Instructions</CardTitle>
+              <CardDescription>
+                Configure restaurant details in <strong>Settings</strong> to
+                update the cards.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                The restaurant name "<strong>{displayRestaurantName}</strong>"
+                and tagline will appear on all printed QR codes. Visit the
+                Settings page to update these details.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -208,8 +190,12 @@ export default function QrGeneratorPage() {
               <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
                 <div className="flex w-full items-start justify-between print:hidden">
                   <div className="text-left">
-                    <h2 className="text-xl font-bold">{restaurantName}</h2>
-                    <p className="text-sm text-muted-foreground">{tagline}</p>
+                    <h2 className="text-xl font-bold">
+                      {displayRestaurantName}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {displayTagline}
+                    </p>
                   </div>
                   <Button
                     variant="destructive"
@@ -222,8 +208,10 @@ export default function QrGeneratorPage() {
                 </div>
 
                 <div className="text-center hidden print:block">
-                  <h2 className="text-xl font-bold">{restaurantName}</h2>
-                  <p className="text-sm text-muted-foreground">{tagline}</p>
+                  <h2 className="text-xl font-bold">{displayRestaurantName}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {displayTagline}
+                  </p>
                 </div>
 
                 <div className="p-4 bg-white rounded-lg border flex justify-center qr-image-container">
@@ -252,7 +240,7 @@ export default function QrGeneratorPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <UtensilsCrossed className="h-3 w-3" />
-                  <span>Powered by Axios</span>
+                  <span>Powered by {displayRestaurantName}</span>
                 </div>
               </CardContent>
             </Card>

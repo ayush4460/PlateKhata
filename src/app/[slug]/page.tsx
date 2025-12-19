@@ -68,6 +68,7 @@ function MenuContent() {
     setTableId,
     setRestaurantSlug,
     setTableToken,
+    restaurantName,
     // cart is already destructured
   } = useCart();
   const searchParams = useSearchParams();
@@ -409,7 +410,8 @@ function MenuContent() {
           <div className="flex items-center gap-2 font-semibold text-lg">
             <UtensilsCrossed className="h-6 w-6 text-primary" />
             <span className="font-headline">
-              MunchMate {tableNumber && `- Table ${tableNumber}`}
+              {restaurantName || "MunchMate"}{" "}
+              {tableNumber && `- Table ${tableNumber}`}
             </span>
           </div>
           <div className="flex items-center gap-2">

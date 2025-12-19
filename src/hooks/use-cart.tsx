@@ -103,10 +103,18 @@ interface CartContextType {
     discount: number,
     upiId: string,
     zomatoId?: string,
-    swiggyId?: string
+    swiggyId?: string,
+    name?: string,
+    address?: string,
+    contactEmail?: string,
+    tagline?: string
   ) => Promise<void>;
   zomatoRestaurantId: string;
   swiggyRestaurantId: string;
+  restaurantName: string | null;
+  restaurantAddress: string | null;
+  restaurantTagline: string | null;
+  contactEmail: string | null;
   setTaxRate: (rate: number) => Promise<void>;
   menuItems: MenuItem[];
   setMenuItems: (items: MenuItem[]) => void;
@@ -263,6 +271,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [upiId, setUpiId] = useState("");
   const [zomatoRestaurantId, setZomatoRestaurantId] = useState("");
   const [swiggyRestaurantId, setSwiggyRestaurantId] = useState("");
+  const [restaurantName, setRestaurantName] = useState<string | null>(null);
+  const [restaurantAddress, setRestaurantAddress] = useState<string | null>(
+    null
+  );
+  const [restaurantTagline, setRestaurantTagline] = useState<string | null>(
+    null
+  );
+  const [contactEmail, setContactEmail] = useState<string | null>(null);
   const router = useRouter();
   const [menuItems, setMenuItemsState] = useState<MenuItem[]>([]);
   const [analyticsPeriod, setAnalyticsPeriodState] =
@@ -322,6 +338,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }>({});
 
   const fetchSettings = useCallback(async () => {
+    if (
+      !restaurantId ||
+      restaurantId === "undefined" ||
+      restaurantId === "null"
+    ) {
+      console.log(
+        "[useCart] Skipping fetchSettings due to invalid restaurantId:",
+        restaurantId
+      );
+      return;
+    }
     try {
       const query = restaurantId ? `?restaurantId=${restaurantId}` : "";
       const res = await fetch(`${API_BASE}/settings/public${query}`, {
@@ -353,6 +380,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (typeof payload.swiggyRestaurantId === "string") {
           setSwiggyRestaurantId(payload.swiggyRestaurantId);
         }
+        if (typeof payload.restaurantName === "string")
+          setRestaurantName(payload.restaurantName);
+        if (typeof payload.restaurantAddress === "string")
+          setRestaurantAddress(payload.restaurantAddress);
+        if (typeof payload.tagline === "string")
+          setRestaurantTagline(payload.tagline);
+        if (typeof payload.contactEmail === "string")
+          setContactEmail(payload.contactEmail);
       }
     } catch (err) {
       console.error("[DEBUG SETTINGS] Failed to fetch public settings:", err);
@@ -360,6 +395,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [restaurantId]);
 
   // --- Initial Data Loading Effect ---
+  // Split fetchSettings into its own effect to respond to ID changes
+  useEffect(() => {
+    if (restaurantId) {
+      console.log(
+        "[useCart] restaurantId changed, fetching settings for:",
+        restaurantId
+      );
+      fetchSettings();
+    }
+  }, [restaurantId, fetchSettings]);
+
   useEffect(() => {
     setIsCartLoading(true);
 
@@ -368,10 +414,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       safeJsonParse<CartItem[]>(localStorage.getItem("cart")) ?? [];
     setCart(storedCart);
 
-    // Load table number from localStorage
-    const storedTableNumber = safeJsonParse<string>(
-      localStorage.getItem("tableNumber")
-    );
+    // Load table number from localStorage (plain string)
+    const storedTableNumber = localStorage.getItem("tableNumber");
     if (storedTableNumber) {
       setTableNumber(storedTableNumber);
     }
@@ -407,27 +451,33 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setDiscountRate(storedDiscountRate);
     }
 
-    const storedUpiId = safeJsonParse<string>(localStorage.getItem("upiId"));
+    const storedUpiId = localStorage.getItem("upiId");
     if (storedUpiId) {
       setUpiId(storedUpiId);
     }
 
-    const storedRestaurantId = safeJsonParse<string>(
-      localStorage.getItem("restaurantId")
-    );
+    const storedRestaurantId = localStorage.getItem("restaurantId");
     if (storedRestaurantId) {
       setRestaurantIdState(storedRestaurantId);
+    } else {
+      // Fallback: Check if Admin is logged in
+      try {
+        const adminUser = JSON.parse(localStorage.getItem("adminUser") || "{}");
+        if (adminUser.restaurantId) {
+          console.log(
+            "[DEBUG INIT] using adminUser restaurantId:",
+            adminUser.restaurantId
+          );
+          setRestaurantIdState(String(adminUser.restaurantId));
+        }
+      } catch (e) {}
     }
 
-    const storedSlug = safeJsonParse<string>(
-      localStorage.getItem("restaurantSlug")
-    );
+    const storedSlug = localStorage.getItem("restaurantSlug");
     console.log("[DEBUG INIT] Loaded storedSlug:", storedSlug);
     if (storedSlug) setRestaurantSlugState(storedSlug);
 
-    const storedToken = safeJsonParse<string>(
-      localStorage.getItem("tableToken")
-    );
+    const storedToken = localStorage.getItem("tableToken");
     console.log("[DEBUG INIT] Loaded storedToken:", storedToken);
     if (storedToken) setTableTokenState(storedToken);
 
@@ -437,7 +487,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     // Connect socket
     console.log("[DEBUG INIT] Connecting socket...");
     connectSocket();
-    fetchSettings();
+    // fetchSettings() is now handled by its own useEffect
     setIsCartLoading(false);
   }, []);
 
@@ -903,7 +953,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       newDiscount: number,
       newUpiId: string,
       newZomatoId?: string,
-      newSwiggyId?: string
+      newSwiggyId?: string,
+      newName?: string,
+      newAddress?: string,
+      newEmail?: string,
+      newTagline?: string
     ) => {
       if (!hasAuthToken()) return;
       // Update local state
@@ -912,6 +966,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setUpiId(newUpiId);
       if (newZomatoId !== undefined) setZomatoRestaurantId(newZomatoId);
       if (newSwiggyId !== undefined) setSwiggyRestaurantId(newSwiggyId);
+      if (newName !== undefined) setRestaurantName(newName);
+      if (newAddress !== undefined) setRestaurantAddress(newAddress);
+      if (newEmail !== undefined) setContactEmail(newEmail);
+      if (newTagline !== undefined) setRestaurantTagline(newTagline);
 
       writeToStorage("taxRate", newTax);
       writeToStorage("discountRate", newDiscount);
@@ -926,9 +984,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           taxRate: newTax,
           discountRate: newDiscount,
           upiId: newUpiId,
+          // Ensure restaurantId is sent if needed, or backend handles it via token
         };
+
+        // Explicitly send restaurant details if provided (for multi-tenant updates)
+        // NOTE: Backend SettingsController.updateSettings might rely on req.user, but explicit passing is safer
+        const authUser = getStoredRole()
+          ? JSON.parse(localStorage.getItem("adminUser") || "{}")
+          : null;
+        const targetId =
+          restaurantId ||
+          (authUser?.restaurantId ? String(authUser.restaurantId) : undefined);
+        if (targetId) body.restaurantId = targetId;
+
         if (newZomatoId !== undefined) body.zomatoRestaurantId = newZomatoId;
         if (newSwiggyId !== undefined) body.swiggyRestaurantId = newSwiggyId;
+        if (newName !== undefined) body.name = newName;
+        if (newAddress !== undefined) body.address = newAddress;
+        if (newEmail !== undefined) body.contactEmail = newEmail;
+        if (newTagline !== undefined) body.tagline = newTagline;
 
         const res = await fetch(`${API_BASE}/settings`, {
           method: "PATCH",
@@ -942,7 +1016,36 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             .catch(() => ({ message: "Unknown error" }));
           throw new Error(errData.message);
         }
-        console.log("[DEBUG] Settings saved.");
+
+        const data = await res.json();
+        console.log("[DEBUG] Settings saved.", data);
+
+        // Check for Slug Change
+        const updatedRest = data.data?.updatedRestaurant;
+        if (
+          updatedRest &&
+          updatedRest.slug &&
+          updatedRest.slug !== restaurantSlug
+        ) {
+          console.log(
+            `[DEBUG SLUG] Slug changed from ${restaurantSlug} to ${updatedRest.slug}`
+          );
+          toast({
+            title: "URL Changed!",
+            description: "Restaurant name changed. Redirecting to new URL...",
+            duration: 5000,
+          });
+
+          // Update slug in state and storage
+          // Update slug in state and storage
+          setRestaurantSlugState(updatedRest.slug);
+          writeToStorage("restaurantSlug", updatedRest.slug);
+
+          // Redirect
+          setTimeout(() => {
+            window.location.href = `/${updatedRest.slug}/dashboard/settings`;
+          }, 2000);
+        }
       } catch (error) {
         console.error("Failed to save settings:", error);
         toast({
@@ -1545,6 +1648,22 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         `[DEBUG] Attempting to create table: Number=${tableNumStr}, Capacity=${capacityNum}`
       );
 
+      const authUser = getStoredRole()
+        ? JSON.parse(localStorage.getItem("adminUser") || "{}")
+        : null;
+      const targetRestaurantId =
+        restaurantId ||
+        (authUser?.restaurantId ? String(authUser.restaurantId) : null);
+
+      if (!targetRestaurantId) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Restaurant ID missing.",
+        });
+        return false;
+      }
+
       try {
         const res = await fetch(`${API_BASE}/tables`, {
           method: "POST",
@@ -1555,6 +1674,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify({
             tableNumber: tableNumStr,
             capacity: capacityNum,
+            restaurantId: targetRestaurantId,
           }),
         });
 
@@ -1891,6 +2011,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         swiggyRestaurantId,
         updateSettings,
         setTaxRate,
+        restaurantName,
+        restaurantAddress,
+        restaurantTagline,
+        contactEmail,
         customerDetails,
         menuItems,
         setMenuItems,

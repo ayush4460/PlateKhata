@@ -159,5 +159,5 @@ export interface Category {
   created_at?: string;
 }
 
-export type CreateCategoryDTO = Pick<Category, 'name' | 'display_order'>;
+export type CreateCategoryDTO = Pick<Category, 'name' | 'display_order'> & { restaurantId?: number };
 export type UpdateCategoryDTO = Partial<Omit<Category, 'id' | 'restaurant_id' | 'created_at'>>;

@@ -354,6 +354,11 @@ export default function MenuEditorPage() {
       form.append("image", editedItem.imageFile);
     }
 
+    // Append restaurantId for multi-tenancy check
+    if (adminUser?.restaurantId) {
+      form.append("restaurantId", String(adminUser.restaurantId));
+    }
+
     const isUpdating = isEditing && isEditing.id;
     const url = isUpdating
       ? `${API_BASE}/menu/${isEditing.id}`
