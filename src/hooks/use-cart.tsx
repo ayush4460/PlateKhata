@@ -583,7 +583,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       };
 
       const isAdminUser = hasAuthToken();
-      const isDashboard = pathname?.startsWith("/dashboard");
+      const isDashboard = pathname?.includes("/dashboard");
       const currentSessionToken = tokenOverride || sessionToken;
 
       // Use Admin Mode ONLY if user is Admin AND on Dashboard

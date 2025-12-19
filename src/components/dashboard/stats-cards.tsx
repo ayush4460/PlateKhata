@@ -20,12 +20,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 
+import { useParams } from "next/navigation"; // Added useParams
+
 export function StatsCards() {
   const { analytics, analyticsPeriod, setAnalyticsPeriod } = useCart();
+  const params = useParams();
+  const slug = params?.slug as string;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
+        {/* ... existing header ... */}
         <h2 className="text-lg font-semibold">Overview</h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -67,7 +72,7 @@ export function StatsCards() {
         </DropdownMenu>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Link href="/dashboard/analytics">
+        <Link href={`/${slug}/dashboard/analytics`}>
           <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -85,7 +90,7 @@ export function StatsCards() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/dashboard/orders">
+        <Link href={`/${slug}/dashboard/orders`}>
           <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">New Orders</CardTitle>
