@@ -145,6 +145,7 @@ export interface AdminUser {
   email: string;
   role: 'admin' | 'kitchen';
   restaurantId?: string | number; // Added restaurantId
+  restaurantSlug?: string; // Added restaurantSlug
   fullName?: string;
   username?: string;
 }

@@ -1,10 +1,10 @@
 // src/app/kitchen/page.tsx
-'use client';
+"use client";
 
-import { OrderColumn } from '@/components/kitchen/order-column';
-import { useCart } from '@/hooks/use-cart';
-import { useAuth } from '@/hooks/use-auth'; // Import useAuth
-import { useEffect, useState } from 'react';
+import { OrderColumn } from "@/components/kitchen/order-column";
+import { useCart } from "@/hooks/use-cart";
+import { useAuth } from "@/hooks/use-auth"; // Import useAuth
+import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -12,17 +12,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 // Match categories from your menu editor
 const KITCHEN_CATEGORIES = [
   "All",
-  "Specials", "Beverages", "Starters", "Salads", "Soups",
-  "Main Course", "Breads", "Desserts", "Appetizers"
+  "Specials",
+  "Beverages",
+  "Starters",
+  "Salads",
+  "Soups",
+  "Main Course",
+  "Breads",
+  "Desserts",
+  "Appetizers",
 ];
 
-export default function KitchenPage() {
+interface PageProps {
+  params: { slug: string };
+}
+
+export default function KitchenPage({ params }: PageProps) {
   const { kitchenOrders, updateKitchenOrderStatus, connectSocket } = useCart();
   const { logout } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -35,15 +46,19 @@ export default function KitchenPage() {
   const filterOrderItems = (orders: any[]) => {
     if (selectedCategory === "All") return orders;
 
-    return orders.map(order => {
-      // Filter items inside the order
-      const relevantItems = order.items.filter((item: any) => item.category === selectedCategory);
+    return orders
+      .map((order) => {
+        // Filter items inside the order
+        const relevantItems = order.items.filter(
+          (item: any) => item.category === selectedCategory
+        );
 
-      return {
-        ...order,
-        items: relevantItems
-      };
-    }).filter(order => order.items.length > 0);
+        return {
+          ...order,
+          items: relevantItems,
+        };
+      })
+      .filter((order) => order.items.length > 0);
   };
 
   return (
@@ -55,14 +70,21 @@ export default function KitchenPage() {
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           {/* Category Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground hidden md:inline">Station:</span>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <span className="text-sm font-medium text-muted-foreground hidden md:inline">
+              Station:
+            </span>
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
               <SelectTrigger className="w-[150px] md:w-[180px]">
                 <SelectValue placeholder="Select Category" />
               </SelectTrigger>
               <SelectContent>
                 {KITCHEN_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -87,14 +109,18 @@ export default function KitchenPage() {
           title="New Orders"
           status="new"
           orders={filterOrderItems(kitchenOrders.new || [])}
-          onMoveOrder={(id) => updateKitchenOrderStatus(id, 'new', 'in-progress')}
+          onMoveOrder={(id) =>
+            updateKitchenOrderStatus(id, "new", "in-progress")
+          }
           actionText="Start Cooking"
         />
         <OrderColumn
           title="Cooking"
           status="in-progress"
-          orders={filterOrderItems(kitchenOrders['in-progress'] || [])}
-          onMoveOrder={(id) => updateKitchenOrderStatus(id, 'in-progress', 'completed')}
+          orders={filterOrderItems(kitchenOrders["in-progress"] || [])}
+          onMoveOrder={(id) =>
+            updateKitchenOrderStatus(id, "in-progress", "completed")
+          }
           actionText="Mark as Ready"
         />
         <OrderColumn

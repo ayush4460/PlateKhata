@@ -1,8 +1,8 @@
 // app/login/page.tsx
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -10,17 +10,17 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { UtensilsCrossed } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth'; // keep your existing hook path
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { UtensilsCrossed } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth"; // keep your existing hook path
 
 export default function AdminLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isKitchen, setIsKitchen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -29,19 +29,22 @@ export default function AdminLoginPage() {
   const router = useRouter();
 
   // --- FIX: Use NEXT_PUBLIC_API_URL consistently ---
-  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
+  const API_BASE = (
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
+  ).replace(/\/$/, "");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const role = isKitchen ? 'kitchen' : 'admin';
+      const role = isKitchen ? "kitchen" : "admin";
 
       // --- FIX: Ensure the API path is correct ---
-      const res = await fetch(`${API_BASE}/auth/login`, { // Removed redundant /api/v1
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        // Removed redundant /api/v1
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
           password,
@@ -53,9 +56,10 @@ export default function AdminLoginPage() {
 
       if (!res.ok || !payload?.success) {
         toast({
-          variant: 'destructive',
-          title: 'Login failed',
-          description: payload?.message || 'Invalid credentials. Please try again.',
+          variant: "destructive",
+          title: "Login failed",
+          description:
+            payload?.message || "Invalid credentials. Please try again.",
         });
         setIsSubmitting(false);
         return;
@@ -65,9 +69,9 @@ export default function AdminLoginPage() {
 
       if (!user || !accessToken) {
         toast({
-          variant: 'destructive',
-          title: 'Login error',
-          description: 'Server response missing token or user.',
+          variant: "destructive",
+          title: "Login error",
+          description: "Server response missing token or user.",
         });
         setIsSubmitting(false);
         return;
@@ -76,8 +80,8 @@ export default function AdminLoginPage() {
       // If your backend returns the user's role, ensure it matches selected role
       if (user.role && user.role !== role) {
         toast({
-          variant: 'destructive',
-          title: 'Role mismatch',
+          variant: "destructive",
+          title: "Role mismatch",
           description: `Login failed: You selected ${role} but your account is ${user.role}.`,
         });
         setIsSubmitting(false);
@@ -87,39 +91,44 @@ export default function AdminLoginPage() {
       // --- THIS IS THE KEY FIX ---
       // 1. Call adminLogin to update the context AND localStorage
       // We assume adminLogin stores tokens in localStorage internally
-      if (typeof adminLogin === 'function') {
+      if (typeof adminLogin === "function") {
         const loginSuccess = await adminLogin(user, accessToken, refreshToken);
         if (loginSuccess === false) {
-           // Handle if adminLogin explicitly fails
-            toast({ variant: 'destructive', title: 'Login error', description: 'Failed to update auth context.' });
-            setIsSubmitting(false);
-            return;
+          // Handle if adminLogin explicitly fails
+          toast({
+            variant: "destructive",
+            title: "Login error",
+            description: "Failed to update auth context.",
+          });
+          setIsSubmitting(false);
+          return;
         }
       } else {
-         // Fallback if adminLogin isn't provided (though it should be)
-         localStorage.setItem('accessToken', accessToken);
-         if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-         localStorage.setItem('adminUser', JSON.stringify(user));
+        // Fallback if adminLogin isn't provided (though it should be)
+        localStorage.setItem("accessToken", accessToken);
+        if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+        localStorage.setItem("adminUser", JSON.stringify(user));
       }
       // --- END FIX ---
 
       toast({
-        title: 'Login successful',
+        title: "Login successful",
         description: `Welcome, ${user.fullName || user.username || user.email}`,
       });
 
       // 2. NOW redirect. The useAuth hook is updated, so the layout won't redirect back.
+      const targetSlug = user.restaurantSlug || "muchmate-central"; // Fallback if missing
       if (isKitchen) {
-        router.replace('/kitchen');
+        router.replace(`/${targetSlug}/kitchen`);
       } else {
-        router.replace('/dashboard');
+        router.replace(`/${targetSlug}/dashboard`);
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error("Login error:", err);
       toast({
-        variant: 'destructive',
-        title: 'Network error',
-        description: err?.message || 'Please try again later.',
+        variant: "destructive",
+        title: "Network error",
+        description: err?.message || "Please try again later.",
       });
     } finally {
       setIsSubmitting(false);
@@ -183,7 +192,7 @@ export default function AdminLoginPage() {
 
           <CardFooter>
             <Button className="w-full" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Logging in...' : 'Login'}
+              {isSubmitting ? "Logging in..." : "Login"}
             </Button>
           </CardFooter>
         </form>

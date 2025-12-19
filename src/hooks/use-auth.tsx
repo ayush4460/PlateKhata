@@ -91,6 +91,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (user.restaurantId) {
           localStorage.setItem("restaurantId", String(user.restaurantId));
         }
+        if (user.restaurantSlug) {
+          localStorage.setItem("restaurantSlug", user.restaurantSlug);
+        }
 
         // 2. Update the context state
         setAdminUser(user);

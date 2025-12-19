@@ -32,16 +32,7 @@ import { useAuth } from "@/hooks/use-auth"; // keep your existing hook path
 import { useCart } from "@/hooks/use-cart";
 import { Badge } from "@/components/ui/badge"; // Added Badge
 
-const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/dashboard/orders", label: "Orders", icon: ListOrdered },
-  { href: "/dashboard/categories", label: "Categories", icon: Tags }, // Added
-  { href: "/dashboard/menu-editor", label: "Menu", icon: ClipboardEdit },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart },
-  { href: "/dashboard/qr-generator", label: "QR Codes", icon: QrCode },
-  { href: "/dashboard/online-orders", label: "Online Orders", icon: Globe },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
+import { useParams } from "next/navigation"; // Added useParams
 
 export default function DashboardLayout({
   children,
@@ -50,9 +41,38 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const params = useParams();
+  const slug = params?.slug as string;
 
   const { adminUser, isAuthLoading } = useAuth();
   const { pastOrders } = useCart(); // Get orders
+
+  const menuItems = [
+    { href: `/${slug}/dashboard`, label: "Dashboard", icon: Home },
+    { href: `/${slug}/dashboard/orders`, label: "Orders", icon: ListOrdered },
+    { href: `/${slug}/dashboard/categories`, label: "Categories", icon: Tags },
+    {
+      href: `/${slug}/dashboard/menu-editor`,
+      label: "Menu",
+      icon: ClipboardEdit,
+    },
+    {
+      href: `/${slug}/dashboard/analytics`,
+      label: "Analytics",
+      icon: BarChart,
+    },
+    {
+      href: `/${slug}/dashboard/qr-generator`,
+      label: "QR Codes",
+      icon: QrCode,
+    },
+    {
+      href: `/${slug}/dashboard/online-orders`,
+      label: "Online Orders",
+      icon: Globe,
+    },
+    { href: `/${slug}/dashboard/settings`, label: "Settings", icon: Settings },
+  ];
 
   // local check for stored session (avoid redirecting if tokens/user exist in storage)
   const [hasLocalSession, setHasLocalSession] = useState<boolean | null>(null);
