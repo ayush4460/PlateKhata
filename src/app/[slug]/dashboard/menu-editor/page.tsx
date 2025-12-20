@@ -720,7 +720,7 @@ export default function MenuEditorPage() {
     <div className="grid auto-rows-max items-start gap-4 md:gap-8">
       {renderEditDialog()}
 
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Payment Settings</CardTitle>
           <CardDescription>Configure Tax, Discount and Upi-Id.</CardDescription>
@@ -762,7 +762,7 @@ export default function MenuEditorPage() {
             <Button onClick={handleSaveSettings}>Save Settings</Button>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
