@@ -391,6 +391,24 @@ export default function OnlineOrdersPage() {
                       )}
                     </div>
 
+                    {/* Rider / Instructions Section */}
+                    {(order.special_instructions || order.customer_phone) && (
+                      <div className="mt-2 text-xs bg-muted p-2 rounded">
+                        {order.special_instructions && (
+                          <p className="font-medium text-foreground">
+                            <span className="font-bold">Note:</span>{" "}
+                            {order.special_instructions}
+                          </p>
+                        )}
+                        {order.customer_phone && (
+                          <p className="mt-1 flex items-center gap-1">
+                            <span className="font-bold">Phone:</span>{" "}
+                            {order.customer_phone}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex justify-between font-bold border-t pt-2">
                       <span>Total</span>
                       <span>{formatPrice(order.total_amount)}</span>
