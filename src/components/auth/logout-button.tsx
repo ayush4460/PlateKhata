@@ -18,7 +18,7 @@ export function LogoutButton() {
   );
 }
 
-// Special version for sidebar
+// Special version for sidebars
 export function SidebarLogoutButton() {
     const { logout } = useAuth();
     return (
