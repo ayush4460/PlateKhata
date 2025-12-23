@@ -11,13 +11,16 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Armchair, RotateCcw } from "lucide-react";
+import { Armchair } from "lucide-react";
 import type { TableStatus as TableStatusType } from "@/lib/types";
-import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 
 export function TableStatus() {
-  const { tableStatuses, clearTableSession } = useCart();
+  const { tableStatuses, isTablesLoading } = useCart();
+  const router = useRouter();
+  const params = useParams();
+  const slug = params?.slug as string;
 
   useEffect(() => {
     console.log("[DEBUG] TableStatus received:", tableStatuses);
@@ -26,22 +29,17 @@ export function TableStatus() {
   const getStatusStyles = (status: TableStatusType["status"]) => {
     switch (status) {
       case "Empty":
-        return "bg-green-50 border-green-200 text-green-800";
+        return "bg-green-50 border-green-200 text-green-800 hover:bg-green-100";
       case "Occupied":
-        return "bg-yellow-50 border-yellow-200 text-yellow-800";
+        return "bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100";
       default:
-        return "bg-gray-50 border-gray-200";
+        return "bg-gray-50 border-gray-200 hover:bg-gray-100";
     }
   };
 
-  const handleClear = (e: React.MouseEvent, tableId: number) => {
-    e.stopPropagation();
-    if (
-      confirm(
-        "Clear table? This will start a new session for the next customer."
-      )
-    ) {
-      clearTableSession(tableId);
+  const handleTableClick = (tableId: number) => {
+    if (slug) {
+      router.push(`/${slug}/dashboard/tables/${tableId}`);
     }
   };
 
@@ -50,11 +48,16 @@ export function TableStatus() {
       <CardHeader>
         <CardTitle>Table Status</CardTitle>
         <CardDescription>
-          Live overview. Click "Clear" when customers leave to reset the table.
+          Live overview. Click on a table to manage orders, add items, or clear
+          it.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {Array.isArray(tableStatuses) && tableStatuses.length > 0 ? (
+        {isTablesLoading ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <p>Loading tables...</p>
+          </div>
+        ) : Array.isArray(tableStatuses) && tableStatuses.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {tableStatuses
               .sort((a, b) => {
@@ -67,9 +70,10 @@ export function TableStatus() {
                 <Card
                   key={table.id}
                   className={cn(
-                    "flex flex-col items-center justify-between p-3 aspect-square transition-all border-2 shadow-sm",
+                    "flex flex-col items-center justify-between p-3 aspect-square transition-all border-2 shadow-sm cursor-pointer",
                     getStatusStyles(table.status)
                   )}
+                  onClick={() => handleTableClick(table.id)}
                 >
                   <div className="flex flex-col items-center gap-1 mt-2">
                     <Armchair className="w-6 h-6 opacity-80" />
@@ -81,24 +85,15 @@ export function TableStatus() {
                       {table.status}
                     </Badge>
                   </div>
-
-                  {/* Always Visible Clear Button for Occupied Tables */}
-                  {/**table.status === 'Occupied' && (
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        className="h-7 text-[12px] mt-2"
-                                        onClick={(e) => handleClear(e, table.id)}
-                                    >
-                                        <RotateCcw className="w-3 h-3 mr-1" /> Clear
-                                    </Button>
-                                )*/}
                 </Card>
               ))}
           </div>
         ) : (
           <div className="text-center py-10 text-muted-foreground">
-            <p>Loading tables...</p>
+            <p>No tables found.</p>
+            <p className="text-sm mt-2">
+              If you have added tables, ensure they are marked as valid.
+            </p>
           </div>
         )}
       </CardContent>

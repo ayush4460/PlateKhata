@@ -143,6 +143,7 @@ interface CartContextType {
   updateSessionTotal: (sessionId: string, newTotal: number) => Promise<void>;
   orderFilters: { startDate?: string; endDate?: string };
   setOrderFilters: (filters: { startDate?: string; endDate?: string }) => void;
+  isTablesLoading: boolean;
 }
 
 // Create the context
@@ -202,6 +203,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
   userName: order.customer_name,
   userPhone: order.customer_phone,
   tableNumber: order.table_number || String(order.table_id),
+  tableId: String(order.table_id), // Added
   date: order.created_at,
   status: (order.order_status.charAt(0).toUpperCase() +
     order.order_status.slice(1)) as PastOrder["status"],
@@ -320,6 +322,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [isCartLoading, setIsCartLoading] = useState(true);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [backendTables, setBackendTables] = useState<any[]>([]);
+  const [isTablesLoading, setIsTablesLoading] = useState(true);
   const [customerDetails, setCustomerDetails] = useState<{
     name: string;
     phone: string;
@@ -449,6 +452,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setMenuItemsState(storedMenuItems);
       setTaxRateState(storedTaxRate);
       setDiscountRate(storedDiscountRate);
+
+      // Explicitly fetch tables on mount to ensure Admin Dashboard loads immediately
+      fetchTables();
     }
 
     const storedUpiId = localStorage.getItem("upiId");
@@ -535,9 +541,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const role = getStoredRole();
     if (role !== "admin") {
       setBackendTables([]);
+      setIsTablesLoading(false);
       return;
     }
 
+    setIsTablesLoading(true);
     try {
       const res = await fetch(`${API_BASE}/tables`, {
         method: "GET",
@@ -553,6 +561,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("[DEBUG] Error fetchTables:", error);
       setBackendTables([]);
+    } finally {
+      setIsTablesLoading(false);
     }
   }, []);
 
@@ -1324,6 +1334,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         })),
         customerName: customer.name,
         customerPhone: customer.phone,
+        restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined, // Added for centralization
         orderType,
       };
 
@@ -1985,80 +1996,78 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [pastOrders, analyticsPeriod]);
 
   // --- Provide State and Actions through Context ---
-  return (
-    <CartContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        updateItemInstructions,
-        clearCart,
-        getTotalPrice,
-        placeOrder,
-        repeatOrder,
-        pastOrders,
-        kitchenOrders,
-        updateKitchenOrderStatus,
-        requestPayment,
-        approvePayment,
-        updatePaymentMethod,
-        cancelOrder,
-        taxRate,
-        discountRate,
-        upiId,
-        zomatoRestaurantId,
-        swiggyRestaurantId,
-        updateSettings,
-        setTaxRate,
-        restaurantName,
-        restaurantAddress,
-        restaurantTagline,
-        contactEmail,
-        customerDetails,
-        menuItems,
-        setMenuItems,
-        analytics,
-        salesData,
-        paymentStats, // Added
-        isCartLoading,
-        tableNumber,
-        setTable,
-        tableStatuses,
-        createTable,
-        deleteTable,
-        clearTableSession,
-        analyticsPeriod,
-        setAnalyticsPeriod,
-        connectSocket,
-        restaurantId,
-        setRestaurantId: (id: string) => {
-          setRestaurantIdState(id);
-          writeToStorage("restaurantId", id);
-        },
-        tableId,
-        setTableId,
-        restaurantSlug,
-        setRestaurantSlug: (slug: string) => {
-          console.log("[DEBUG CONTEXT] setRestaurantSlug called with:", slug);
-          setRestaurantSlugState(slug);
-          writeToStorage("restaurantSlug", slug);
-        },
-        tableToken,
-        setTableToken: (token: string) => {
-          console.log("[DEBUG CONTEXT] setTableToken called with:", token);
-          setTableTokenState(token);
-          writeToStorage("tableToken", token);
-        },
 
-        updateSessionTotal,
-        orderFilters,
-        setOrderFilters,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
-  );
+  const value = {
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    updateItemInstructions,
+    clearCart,
+    getTotalPrice,
+    placeOrder,
+    repeatOrder,
+    pastOrders,
+    kitchenOrders,
+    updateKitchenOrderStatus,
+    requestPayment,
+    approvePayment,
+    updatePaymentMethod,
+    cancelOrder,
+    taxRate,
+    discountRate,
+    upiId,
+    zomatoRestaurantId,
+    swiggyRestaurantId,
+    updateSettings,
+    setTaxRate,
+    restaurantName,
+    restaurantAddress,
+    restaurantTagline,
+    contactEmail,
+    customerDetails,
+    menuItems,
+    setMenuItems,
+    analytics,
+    salesData,
+    paymentStats, // Added
+    isCartLoading,
+    tableNumber,
+    setTable: useCallback((t: string | null) => setTableNumber(t), []),
+    tableStatuses,
+    createTable,
+    deleteTable,
+    clearTableSession,
+    analyticsPeriod,
+    setAnalyticsPeriod,
+    connectSocket,
+    restaurantId,
+    setRestaurantId: useCallback((id: string) => {
+      setRestaurantIdState(id);
+      writeToStorage("restaurantId", id);
+    }, []),
+    tableId,
+    setTableId,
+    restaurantSlug,
+    setRestaurantSlug: useCallback((slug: string) => {
+      //console.log("[DEBUG CONTEXT] setRestaurantSlug called with:", slug);
+      setRestaurantSlugState(slug);
+      writeToStorage("restaurantSlug", slug);
+    }, []),
+    tableToken,
+    setTableToken: useCallback((token: string) => {
+      //console.log("[DEBUG CONTEXT] setTableToken called with:", token);
+      setTableTokenState(token);
+      writeToStorage("tableToken", token);
+    }, []),
+
+    updateSessionTotal,
+    orderFilters,
+    setOrderFilters,
+    isTablesLoading,
+  };
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 // --- Custom Hook to Use Cart Context ---

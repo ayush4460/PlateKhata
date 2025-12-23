@@ -69,6 +69,7 @@ export interface PastOrder {
   userName: string;
   userPhone: string;
   tableNumber: string;
+  tableId: string; // Added for precise filtering
   date: string;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Ready' | 'Served' | 'Completed' | 'Cancelled';
   paymentStatus: 'Pending' | 'Approved' | 'Requested';
