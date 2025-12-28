@@ -353,7 +353,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     try {
-      const query = restaurantId ? `?restaurantId=${restaurantId}` : "";
+      const cleanId = restaurantId ? restaurantId.replace(/^"|"$/g, "") : "";
+      const query = cleanId ? `?restaurantId=${cleanId}` : "";
       const res = await fetch(`${API_BASE}/settings/public${query}`, {
         headers: {
           "Content-Type": "application/json",
@@ -464,7 +465,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const storedRestaurantId = localStorage.getItem("restaurantId");
     if (storedRestaurantId) {
-      setRestaurantIdState(storedRestaurantId);
+      setRestaurantIdState(storedRestaurantId.replace(/^"|"$/g, ""));
     } else {
       // Fallback: Check if Admin is logged in
       try {
@@ -474,7 +475,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             "[DEBUG INIT] using adminUser restaurantId:",
             adminUser.restaurantId
           );
-          setRestaurantIdState(String(adminUser.restaurantId));
+          setRestaurantIdState(
+            String(adminUser.restaurantId).replace(/^"|"$/g, "")
+          );
         }
       } catch (e) {}
     }

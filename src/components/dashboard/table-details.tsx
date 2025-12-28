@@ -41,31 +41,81 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     clearTableSession,
     updateItemInstructions,
     placeOrder,
-    requestPayment,
     updatePaymentMethod,
     tableNumber,
+    tableStatuses, // Added to look up table ID
+    isTablesLoading, // Added to handle loading state
+    setTableId, // Added to sync table ID
   } = useCart();
 
-  // Filter orders for this specific table (robust check using tableId)
+  // --- Resolve Table ID from URL Param (which is now Table Number) ---
+  const [activeTable, setActiveTable] = useState<{
+    id: number;
+    tableNumber: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (isTablesLoading || !tableStatuses || tableStatuses.length === 0) return;
+
+    // The param is now the Table Number (e.g., "1", "A1")
+    const targetTableNumber = tableId;
+
+    const foundTable = tableStatuses.find(
+      (t) => t.tableNumber === targetTableNumber
+    );
+
+    if (foundTable) {
+      setActiveTable({
+        id: foundTable.id,
+        tableNumber: foundTable.tableNumber,
+      });
+
+      // Sync Context
+      // Store the DATABASE ID in tableId context (for backend ops)
+      setTableId(String(foundTable.id));
+      // Store the TABLE NUMBER in table context (for display/legacy)
+      setTable(foundTable.tableNumber);
+    } else {
+      console.warn(
+        `[TableDetails] Table Number ${targetTableNumber} not found in statuses.`
+      );
+    }
+  }, [tableId, tableStatuses, isTablesLoading, setTable, setTableId]);
+
+  // Filter orders using the RESOLVED Database ID
   const pastOrders = allPastOrders.filter(
-    (o) => o.tableId === tableId || o.tableNumber === tableId
+    (o) =>
+      ((activeTable &&
+        (o.tableId === String(activeTable.id) ||
+          o.tableNumber === String(activeTable.id))) ||
+        (!activeTable && o.tableId === tableId)) && // Fallback
+      // Filter out 'settled' orders (Paid AND (Served OR Completed))
+      !(
+        o.paymentStatus === "Approved" &&
+        (o.status === "Served" || o.status === "Completed")
+      )
   );
+
+  const totalUnpaidAmount = pastOrders.reduce((sum, order) => {
+    if (order.paymentStatus !== "Approved") {
+      return sum + order.total;
+    }
+    return sum;
+  }, 0);
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   // --- On Mount: Set Table Context ---
   useEffect(() => {
-    if (tableId) {
-      console.log(`[TableDetails] Switching to Table ${tableId}`);
-      // If we are switching to a new table, clear the local cart (draft order)
-      // But we might want to check if it's actually different to avoid clearing on refresh?
-      // checking tableNumber vs tableId (both strings usually)
-      if (tableNumber !== tableId) {
+    if (activeTable) {
+      console.log(
+        `[TableDetails] Switching to Table #${activeTable.tableNumber} (ID: ${activeTable.id})`
+      );
+      if (tableNumber !== activeTable.tableNumber) {
         clearCart();
       }
-      setTable(tableId);
     }
-  }, [tableId, setTable, clearCart, tableNumber]);
+  }, [activeTable, clearCart, tableNumber]);
 
   const subtotal = getTotalPrice();
   // Assuming tax logic is handled in useCart or we replicate display logic
@@ -96,7 +146,9 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       )
     ) {
       // we need numeric id for clearTableSession
-      await clearTableSession(Number(tableId));
+      // Use resolved DB ID if available, else try parsing param (fallback)
+      const targetId = activeTable ? activeTable.id : Number(tableId);
+      await clearTableSession(targetId);
       router.push(`/${slug}/dashboard`);
     }
   };
@@ -146,14 +198,17 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
           </Button>
           <span className="font-semibold text-lg">
-            Adding items to Table #{tableId}
+            Adding items to Table #
+            {activeTable ? activeTable.tableNumber : tableId}
           </span>
         </div>
         <div className="flex-1 overflow-y-auto bg-gray-50/50">
           <MenuContent
             disableTokenVerification={true}
             enableCartWidget={false}
-            customTableId={Number(tableId)}
+            customTableId={
+              activeTable ? Number(activeTable.tableNumber) : Number(tableId)
+            } // Pass Number for display
           />
         </div>
       </div>
@@ -250,7 +305,14 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
         {/* 2. ACTIVE ORDERS / BILL */}
         <Card className="flex flex-col flex-1 min-h-[40%] overflow-hidden">
           <CardHeader className="py-3 px-4 bg-muted/50">
-            <CardTitle className="text-base">Active Orders</CardTitle>
+            <CardTitle className="text-base flex justify-between items-center">
+              <span>Active Orders</span>
+              {totalUnpaidAmount > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  Total Outstanding: ₹{totalUnpaidAmount}
+                </Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-0">
             {pastOrders.length === 0 ? (

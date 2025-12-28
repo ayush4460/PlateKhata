@@ -1,11 +1,18 @@
 "use client";
 
 import { TableDetails } from "@/components/dashboard/table-details";
+import { use } from "react";
 
 interface PageProps {
-  params: { slug: string; tableId: string };
+  params: Promise<{ slug: string; tableId: string }>;
 }
 
 export default function TableOrderPage({ params }: PageProps) {
-  return <TableDetails tableId={params.tableId} slug={params.slug} />;
+  const unwrappedParams = use(params);
+  return (
+    <TableDetails
+      tableId={unwrappedParams.tableId}
+      slug={unwrappedParams.slug}
+    />
+  );
 }

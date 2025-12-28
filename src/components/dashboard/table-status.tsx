@@ -37,9 +37,9 @@ export function TableStatus() {
     }
   };
 
-  const handleTableClick = (tableId: number) => {
+  const handleTableClick = (tableNumber: string) => {
     if (slug) {
-      router.push(`/${slug}/dashboard/tables/${tableId}`);
+      router.push(`/${slug}/dashboard/tables/${tableNumber}`);
     }
   };
 
@@ -73,7 +73,7 @@ export function TableStatus() {
                     "flex flex-col items-center justify-between p-3 aspect-square transition-all border-2 shadow-sm cursor-pointer",
                     getStatusStyles(table.status)
                   )}
-                  onClick={() => handleTableClick(table.id)}
+                  onClick={() => handleTableClick(table.tableNumber)}
                 >
                   <div className="flex flex-col items-center gap-1 mt-2">
                     <Armchair className="w-6 h-6 opacity-80" />
