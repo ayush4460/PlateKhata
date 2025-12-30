@@ -1,4 +1,4 @@
-// src/app/dashboard/layout.tsx
+// src/app/[slug]/dashboard/layout.tsx
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -164,7 +164,7 @@ export default function DashboardLayout({
                     isActive={pathname === item.href}
                     className={
                       showBadge
-                        ? "text-red-500 font-bold hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        ? "text-destructive font-bold hover:text-destructive/90 hover:bg-destructive/10"
                         : "h-10 justify-start"
                     }
                   >
@@ -176,7 +176,7 @@ export default function DashboardLayout({
                         <item.icon
                           className={
                             showBadge
-                              ? "h-5 w-5 text-red-500 animate-pulse"
+                              ? "h-5 w-5 text-destructive animate-pulse"
                               : "h-5 w-5"
                           }
                         />
@@ -209,7 +209,7 @@ export default function DashboardLayout({
           </div>
           <ThemeToggle />
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-food-pattern bg-fixed">
           {children}
         </main>
       </SidebarInset>

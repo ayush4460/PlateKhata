@@ -1,3 +1,4 @@
+//app/slug/dashboard/orders/page.tsx
 import { RecentOrders } from '@/components/dashboard/recent-orders';
 
 export default function OrdersPage() {

@@ -7,8 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// I will split this into two calls or use multi_replace.
-// I'll use multi_replace.
 import {
   Table,
   TableBody,
@@ -74,6 +72,7 @@ import type { DateRange } from "react-day-picker";
 import type { PastOrder } from "@/lib/types";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Sub-component for the expanded session details
 function SessionDetails({
@@ -96,7 +95,7 @@ function SessionDetails({
         orderId: order.id,
         orderType: order.orderType,
         orderNumber: order.orderNumber,
-        spiceLevel: (item as any).spiceLevel, // Added
+        spiceLevel: (item as any).spiceLevel,
       }))
     );
   }, [group.orders]);
@@ -114,7 +113,7 @@ function SessionDetails({
 
   return (
     <div className="p-4 bg-muted/20 border-t shadow-inner">
-      <div className="rounded-md border bg-background">
+      <div className="rounded-md border bg-background overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -283,8 +282,6 @@ export function RecentOrders() {
 
   // Initial Filter Application
   useEffect(() => {
-    // Apply default "Today" filter on mount
-    // We do this to ensure we show today's orders by default as requested
     const from = format(startOfToday(), "yyyy-MM-dd");
     const to = format(endOfToday(), "yyyy-MM-dd");
     setOrderFilters({ startDate: from, endDate: to });
@@ -341,7 +338,6 @@ export function RecentOrders() {
 
   const handleDownloadBill = (group: any) => {
     try {
-      // 1. Consolidate Items
       const allItems = group.orders.flatMap((order: PastOrder) =>
         order.items.map((item) => ({
           ...item,
@@ -350,22 +346,16 @@ export function RecentOrders() {
         }))
       );
 
-      // 2. Setup PDF (Thermal Receipt size: 80mm width, dynamic height approx 200mm start)
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: [80, 2000], // Long strip for roll paper simulation
+        format: [80, 2000],
       });
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 5;
-      const contentWidth = pageWidth - margin * 2;
       let yPos = 10;
 
-      // Unmount logic to check if we can reduce height at the end? jsPDF doesn't resize easily.
-      // We'll proceed with standard thermal layout.
-
-      // 3. Header
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.text("MuchMate Restaurant", pageWidth / 2, yPos, { align: "center" });
@@ -386,10 +376,9 @@ export function RecentOrders() {
       });
       yPos += 6;
 
-      // 4. Items Table
       const tableHeaders = [["Item", "Qty", "Price", "Amt"]];
       const tableBody = allItems.map((item: any) => [
-        item.name.substring(0, 15) + (item.name.length > 15 ? "..." : ""), // Truncate name
+        item.name.substring(0, 15) + (item.name.length > 15 ? "..." : ""),
         item.quantity.toString(),
         item.price.toFixed(2),
         (item.price * item.quantity).toFixed(2),
@@ -399,7 +388,7 @@ export function RecentOrders() {
         head: tableHeaders,
         body: tableBody,
         startY: yPos,
-        theme: "plain", // Minimalist for thermal
+        theme: "plain",
         styles: { fontSize: 8, cellPadding: 1, overflow: "linebreak" },
         headStyles: { fontStyle: "bold", borderBottomWidth: 0.5, lineColor: 0 },
         columnStyles: {
@@ -416,13 +405,12 @@ export function RecentOrders() {
 
       yPos = (doc as any).lastAutoTable.finalY + 5;
 
-      // 5. Totals
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
 
       const addLine = (label: string, value: string) => {
-        doc.text(label, pageWidth - margin - 35, yPos); // Label x-pos
-        doc.text(value, pageWidth - margin, yPos, { align: "right" }); // Value x-pos
+        doc.text(label, pageWidth - margin - 35, yPos);
+        doc.text(value, pageWidth - margin, yPos, { align: "right" });
         yPos += 4;
       };
 
@@ -432,7 +420,6 @@ export function RecentOrders() {
         addLine("Discount:", `-${group.discount.toFixed(2)}`);
       }
 
-      // Divider
       doc.line(margin, yPos, pageWidth - margin, yPos);
       yPos += 5;
 
@@ -447,7 +434,6 @@ export function RecentOrders() {
       yPos += 10;
       doc.text("*** Thank You ***", pageWidth / 2, yPos, { align: "center" });
 
-      // 6. Save
       doc.save(`Bill_${group.tableNumber}_${group.key.slice(0, 6)}.pdf`);
     } catch (e) {
       console.error("Download failed", e);
@@ -470,8 +456,6 @@ export function RecentOrders() {
       }
 
       const wb = XLSX.utils.book_new();
-
-      // 1. Group orders by Table
       const ordersByTable: Record<string, any[]> = {};
       pastOrders.forEach((order) => {
         const tableKey = order.tableNumber || "Unknown Table";
@@ -481,19 +465,14 @@ export function RecentOrders() {
         ordersByTable[tableKey].push(order);
       });
 
-      // 2. Create Sheet per Table
       Object.keys(ordersByTable)
         .sort()
         .forEach((tableKey) => {
           const tableOrders = ordersByTable[tableKey];
-
           const rows = tableOrders.map((order) => {
-            // Format Items List
             const itemsList = order.items
               .map((i: any) => `${i.quantity}x ${i.name}`)
               .join(", ");
-
-            // Calculate breakdown if missing
             const subtotal =
               order.subtotal ||
               order.total - (order.tax || 0) + (order.discount || 0) ||
@@ -508,7 +487,7 @@ export function RecentOrders() {
               Subtotal: subtotal,
               Tax: order.tax || 0,
               "Discount / Adjustment": order.discount || 0,
-              "Total Bill (Admin)": order.total, // This is the final value
+              "Total Bill (Admin)": order.total,
               "Payment Method": order.paymentMethod || "N/A",
               Status: order.status,
               "Payment Status": order.paymentStatus,
@@ -516,28 +495,24 @@ export function RecentOrders() {
           });
 
           const ws = XLSX.utils.json_to_sheet(rows);
-
-          // Auto-width columns (basic heuristic)
           const wscols = [
-            { wch: 20 }, // Time
-            { wch: 15 }, // ID
-            { wch: 15 }, // Name
-            { wch: 15 }, // Phone
-            { wch: 40 }, // Items
-            { wch: 10 }, // Subtotal
-            { wch: 10 }, // Tax
-            { wch: 10 }, // Discount
-            { wch: 15 }, // Total
-            { wch: 15 }, // Payment Method
-            { wch: 15 }, // Status
-            { wch: 15 }, // Payment Status
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 40 },
+            { wch: 10 },
+            { wch: 10 },
+            { wch: 10 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
           ];
           ws["!cols"] = wscols;
-
           XLSX.utils.book_append_sheet(wb, ws, `Table ${tableKey}`);
         });
 
-      // 3. Save File
       const fileName = `Orders_Export_${format(
         new Date(),
         "yyyy-MM-dd_HH-mm"
@@ -558,7 +533,6 @@ export function RecentOrders() {
     }
   };
 
-  // Group orders by session_id (Existing logic)
   const groupedOrders = useMemo(() => {
     const groups: Record<string, PastOrder[]> = {};
 
@@ -585,31 +559,28 @@ export function RecentOrders() {
         const latestOrder = group[0];
         const regularOrder = group.find((o) => o.orderType === "regular");
 
-        // Find effective payment status and method (Prioritize Approved > Requested > Latest)
         let effectivePaymentStatus = latestOrder.paymentStatus;
         let effectivePaymentMethod = (latestOrder as any).paymentMethod;
-        let effectivePaymentMethodId = latestOrder.id; // Initialize with latest ID
+        let effectivePaymentMethodId = latestOrder.id;
 
         const approvedOrder = group.find((o) => o.paymentStatus === "Approved");
         const requestedOrder = group.find(
           (o) => o.paymentStatus === "Requested"
         );
-        // Fallback: find any order with a method if current is null
         const anyMethodOrder = group.find((o) => (o as any).paymentMethod);
 
         if (approvedOrder) {
           effectivePaymentStatus = "Approved";
           effectivePaymentMethod = (approvedOrder as any).paymentMethod;
         } else if (requestedOrder) {
-          // Only override if not already approved
           if (effectivePaymentStatus !== "Approved") {
             effectivePaymentStatus = "Requested";
             effectivePaymentMethod = (requestedOrder as any).paymentMethod;
-            effectivePaymentMethodId = requestedOrder.id; // Set ID from requested order
+            effectivePaymentMethodId = requestedOrder.id;
           }
         } else if (!effectivePaymentMethod && anyMethodOrder) {
           effectivePaymentMethod = (anyMethodOrder as any).paymentMethod;
-          effectivePaymentMethodId = anyMethodOrder.id; // Added ID here
+          effectivePaymentMethodId = anyMethodOrder.id;
         }
 
         return {
@@ -624,7 +595,7 @@ export function RecentOrders() {
           status: latestOrder.status,
           paymentStatus: effectivePaymentStatus,
           paymentMethod: effectivePaymentMethod,
-          paymentMethodId: effectivePaymentMethodId, // Exposed ID
+          paymentMethodId: effectivePaymentMethodId,
           total: total,
           subtotal: subtotal,
           tax: tax,
@@ -633,7 +604,7 @@ export function RecentOrders() {
           sessionId:
             (latestOrder as any).sessionId || (latestOrder as any).session_id,
           regularOrder: regularOrder,
-          platform: (latestOrder as any).platform, // Added
+          platform: (latestOrder as any).platform,
         };
       })
       .sort((a, b) => {
@@ -692,101 +663,104 @@ export function RecentOrders() {
         onOpenChange={(isOpen) => !isOpen && setOrderToDelete(null)}
       >
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div className="space-y-1">
-              <CardTitle>Orders & Sessions ({groupedOrders.length})</CardTitle>
-              <CardDescription>
-                {activeFilter === "today" && "Showing orders for today"}
-                {activeFilter === "yesterday" && "Showing orders for yesterday"}
-                {activeFilter === "week" && "Showing orders for this week"}
-                {activeFilter === "month" && "Showing orders for this month"}
-                {activeFilter === "custom" &&
-                  dateRange?.from &&
-                  `Showing orders from ${format(
-                    dateRange.from,
-                    "MMM dd, yyyy"
-                  )}` +
-                    (dateRange.to
-                      ? ` to ${format(dateRange.to, "MMM dd, yyyy")}`
-                      : "")}
-              </CardDescription>
-            </div>
+          <CardHeader className="flex flex-col space-y-4 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle>Orders & Sessions ({groupedOrders.length})</CardTitle>
+                <CardDescription>
+                  {activeFilter === "today" && "Showing orders for today"}
+                  {activeFilter === "yesterday" &&
+                    "Showing orders for yesterday"}
+                  {activeFilter === "week" && "Showing orders for this week"}
+                  {activeFilter === "month" && "Showing orders for this month"}
+                  {activeFilter === "custom" &&
+                    dateRange?.from &&
+                    `Showing orders from ${format(
+                      dateRange.from,
+                      "MMM dd, yyyy"
+                    )}` +
+                      (dateRange.to
+                        ? ` to ${format(dateRange.to, "MMM dd, yyyy")}`
+                        : "")}
+                </CardDescription>
+              </div>
 
-            {/* Filter Controls */}
-            <div className="flex items-center space-x-2 bg-muted/30 p-1 rounded-lg">
-              <Button
-                variant={activeFilter === "today" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => handlePresetChange("today")}
-                className="h-8 text-xs"
-              >
-                Today
-              </Button>
-              <Button
-                variant={activeFilter === "yesterday" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => handlePresetChange("yesterday")}
-                className="h-8 text-xs"
-              >
-                Yesterday
-              </Button>
-              <Button
-                variant={activeFilter === "week" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => handlePresetChange("week")}
-                className="h-8 text-xs"
-              >
-                This Week
-              </Button>
+              {/* FIX: Use flex-wrap and gap to prevent overflow */}
+              <div className="flex flex-wrap items-center gap-2 bg-muted/30 p-1 rounded-lg">
+                <Button
+                  variant={activeFilter === "today" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => handlePresetChange("today")}
+                  className="h-8 text-xs"
+                >
+                  Today
+                </Button>
+                <Button
+                  variant={activeFilter === "yesterday" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => handlePresetChange("yesterday")}
+                  className="h-8 text-xs"
+                >
+                  Yesterday
+                </Button>
+                <Button
+                  variant={activeFilter === "week" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => handlePresetChange("week")}
+                  className="h-8 text-xs"
+                >
+                  This Week
+                </Button>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={
-                      activeFilter === "custom" ? "secondary" : "outline"
-                    }
-                    size="sm"
-                    className={cn(
-                      "h-8 text-xs justify-start text-left font-normal",
-                      !dateRange && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-3 w-3" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "LLL dd, y")} -{" "}
-                          {format(dateRange.to, "LLL dd, y")}
-                        </>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={
+                        activeFilter === "custom" ? "secondary" : "outline"
+                      }
+                      size="sm"
+                      className={cn(
+                        "h-8 text-xs justify-start text-left font-normal",
+                        !dateRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "LLL dd, y")} -{" "}
+                            {format(dateRange.to, "LLL dd, y")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "LLL dd, y")
+                        )
                       ) : (
-                        format(dateRange.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={handleCalendarSelect}
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
+                        <span>Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={handleCalendarSelect}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
 
-              {/* Excel Export Button */}
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleExportExcel}
-                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-2"
-              >
-                <Download className="mr-2 h-3 w-3" />
-                Excel
-              </Button>
+                {/* Excel Export Button */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleExportExcel}
+                  className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-2"
+                >
+                  <Download className="mr-2 h-3 w-3" />
+                  Excel
+                </Button>
+              </div>
             </div>
           </CardHeader>
 
@@ -796,169 +770,192 @@ export function RecentOrders() {
                 <p>No orders found for the selected period.</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]"></TableHead>
-                    <TableHead>Table</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead className="text-right">Session Total</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedOrders.map((group) => (
-                    <React.Fragment key={group.key}>
-                      {/* PARENT ROW */}
-                      <TableRow
-                        className={cn(
-                          "hover:bg-muted/40 transition-colors",
-                          expandedSessions[group.key] &&
-                            "bg-muted/40 border-b-0"
-                        )}
-                        onClick={() => toggleExpand(group.key)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDownloadBill(group)}
-                            title="Download Bill"
-                          >
-                            <Printer className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleExpand(group.key);
-                            }}
-                          >
-                            {expandedSessions[group.key] ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="font-bold">
-                          {group.platform ? (
-                            <Badge
-                              variant="secondary"
-                              className={cn(
-                                "text-white uppercase font-bold tracking-wider",
-                                group.platform.toLowerCase() === "zomato"
-                                  ? "bg-red-600 hover:bg-red-700"
-                                  : group.platform.toLowerCase() === "swiggy"
-                                  ? "bg-orange-500 hover:bg-orange-600"
-                                  : "bg-blue-600"
-                              )}
-                            >
-                              {group.platform}
-                            </Badge>
-                          ) : (
-                            <>Table {group.tableNumber}</>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{group.userName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {group.userPhone}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {group.status.toLowerCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex flex-col gap-1">
-                            <Badge
-                              variant={
-                                group.paymentStatus === "Approved"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                              className="w-fit"
-                            >
-                              {group.paymentStatus}
-                            </Badge>
-
-                            {/* Editable Payment Method for Approved/Requested orders */}
-                            {group.paymentStatus === "Approved" ||
-                            group.paymentStatus === "Requested" ? (
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <Select
-                                  defaultValue={group.paymentMethod}
-                                  onValueChange={(val) =>
-                                    updatePaymentMethod(
-                                      group.paymentMethodId,
-                                      val,
-                                      "Approved"
-                                    )
-                                  }
-                                >
-                                  <SelectTrigger className="h-6 w-[100px] text-[10px] p-1">
-                                    <SelectValue
-                                      placeholder={
-                                        group.paymentMethod || "Select"
-                                      }
-                                    />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Cash">CASH</SelectItem>
-                                    <SelectItem value="UPI">UPI</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            ) : (
-                              group.paymentMethod && (
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                                  {group.paymentMethod}
-                                </span>
-                              )
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          ₹{group.total.toFixed(2)}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          {(group.paymentStatus === "Pending" ||
-                            group.paymentStatus === "Requested") &&
-                            (group.status.toLowerCase() === "ready" ||
-                              group.status.toLowerCase() === "served") && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => approvePayment(group.latestId)}
-                              >
-                                Approve Payment
-                              </Button>
-                            )}
-                        </TableCell>
-                      </TableRow>
-
-                      {/* EXPANDED DETAILS */}
-                      {expandedSessions[group.key] && (
-                        <TableRow className="bg-muted/10">
-                          <TableCell colSpan={7} className="p-0">
-                            <SessionDetails
-                              group={group}
-                              onUpdateTotal={handleUpdateTotal}
-                            />
-                          </TableCell>
+              <Tabs defaultValue="orders" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="orders">Orders List</TabsTrigger>
+                  {/* Keep tabs for potential future expansion */}
+                </TabsList>
+                <TabsContent value="orders">
+                  {/* FIX: Wrapped Table in overflow-x-auto to handle horizontal scrolling */}
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]"></TableHead>
+                          <TableHead>Table</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Payment</TableHead>
+                          <TableHead className="text-right">
+                            Session Total
+                          </TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {groupedOrders.map((group) => (
+                          <React.Fragment key={group.key}>
+                            {/* PARENT ROW */}
+                            <TableRow
+                              className={cn(
+                                "hover:bg-muted/40 transition-colors",
+                                expandedSessions[group.key] &&
+                                  "bg-muted/40 border-b-0"
+                              )}
+                              onClick={() => toggleExpand(group.key)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDownloadBill(group)}
+                                  title="Download Bill"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpand(group.key);
+                                  }}
+                                >
+                                  {expandedSessions[group.key] ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TableCell>
+                              <TableCell className="font-bold">
+                                {group.platform ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className={cn(
+                                      "text-white uppercase font-bold tracking-wider",
+                                      group.platform.toLowerCase() === "zomato"
+                                        ? "bg-brand-zomato hover:bg-brand-zomato"
+                                        : group.platform.toLowerCase() ===
+                                          "swiggy"
+                                        ? "bg-brand-swiggy hover:bg-brand-swiggy"
+                                        : "bg-blue-600"
+                                    )}
+                                  >
+                                    {group.platform}
+                                  </Badge>
+                                ) : (
+                                  <>Table {group.tableNumber}</>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">
+                                  {group.userName}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {group.userPhone}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="capitalize">
+                                  {group.status.toLowerCase()}
+                                </Badge>
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-col gap-1">
+                                  <Badge
+                                    variant={
+                                      group.paymentStatus === "Approved"
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                    className="w-fit"
+                                  >
+                                    {group.paymentStatus}
+                                  </Badge>
+
+                                  {/* Editable Payment Method for Approved/Requested orders */}
+                                  {group.paymentStatus === "Approved" ||
+                                  group.paymentStatus === "Requested" ? (
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      <Select
+                                        defaultValue={group.paymentMethod}
+                                        onValueChange={(val) =>
+                                          updatePaymentMethod(
+                                            group.paymentMethodId,
+                                            val,
+                                            "Approved"
+                                          )
+                                        }
+                                      >
+                                        <SelectTrigger className="h-6 w-[100px] text-[10px] p-1">
+                                          <SelectValue
+                                            placeholder={
+                                              group.paymentMethod || "Select"
+                                            }
+                                          />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Cash">
+                                            CASH
+                                          </SelectItem>
+                                          <SelectItem value="UPI">
+                                            UPI
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  ) : (
+                                    group.paymentMethod && (
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                        {group.paymentMethod}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                ₹{group.total.toFixed(2)}
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                {(group.paymentStatus === "Pending" ||
+                                  group.paymentStatus === "Requested") &&
+                                  (group.status.toLowerCase() === "ready" ||
+                                    group.status.toLowerCase() ===
+                                      "served") && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        approvePayment(group.latestId)
+                                      }
+                                    >
+                                      Approve Payment
+                                    </Button>
+                                  )}
+                              </TableCell>
+                            </TableRow>
+
+                            {/* EXPANDED DETAILS */}
+                            {expandedSessions[group.key] && (
+                              <TableRow className="bg-muted/10">
+                                <TableCell colSpan={7} className="p-0">
+                                  <SessionDetails
+                                    group={group}
+                                    onUpdateTotal={handleUpdateTotal}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>

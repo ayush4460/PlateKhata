@@ -1,4 +1,4 @@
-// src/app/kitchen/page.tsx
+// src/app/[slug]/kitchen/page.tsx
 "use client";
 
 import { OrderColumn } from "@/components/kitchen/order-column";
