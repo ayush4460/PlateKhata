@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Home,
@@ -144,6 +145,7 @@ export default function DashboardLayout({
   // At this point either adminUser exists or localStorage has session — render UI.
   return (
     <SidebarProvider>
+      <SidebarLogic />
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2 font-semibold text-lg p-2">
@@ -204,8 +206,13 @@ export default function DashboardLayout({
       <SidebarInset>
         <header className="flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6">
           <div className="flex items-center gap-4">
-            <SidebarTrigger className="md:hidden" />
-            <h1 className="text-xl font-semibold">Admin Dashboard</h1>
+            <SidebarTrigger className="-ml-2" />
+            <Link
+              href={`/${slug}/dashboard`}
+              className="cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <h1 className="text-xl font-semibold">Admin Dashboard</h1>
+            </Link>
           </div>
           <ThemeToggle />
         </header>
@@ -215,4 +222,17 @@ export default function DashboardLayout({
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+function SidebarLogic() {
+  const { setOpen } = useSidebar();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (pathname.includes("/dashboard/tables/")) {
+      setOpen(false);
+    }
+  }, [pathname, setOpen]);
+
+  return null;
 }

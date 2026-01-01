@@ -202,10 +202,11 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             {activeTable ? activeTable.tableNumber : tableId}
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto bg-gray-50/50">
+        <div className="flex-1 overflow-y-auto bg-background">
           <MenuContent
             disableTokenVerification={true}
             enableCartWidget={false}
+            layoutMode="split"
             customTableId={
               activeTable ? Number(activeTable.tableNumber) : Number(tableId)
             } // Pass Number for display

@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const normalizeBool = (val: any) =>
   val === true || val === "true" || Number(val) === 1;
@@ -46,12 +47,14 @@ interface MenuContentProps {
   disableTokenVerification?: boolean;
   enableCartWidget?: boolean;
   customTableId?: number; // Optional: If we want to force a specific table (Admin view)
+  layoutMode?: "default" | "split";
 }
 
 export function MenuContent({
   disableTokenVerification = false,
   enableCartWidget = true, // Default to true (Customer view)
   customTableId,
+  layoutMode = "default",
 }: MenuContentProps) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -384,7 +387,8 @@ export function MenuContent({
   return (
     <div
       className={cn(
-        "bg-background min-h-screen",
+        "bg-background",
+        layoutMode === "split" ? "h-full flex flex-col" : "min-h-screen",
         enableCartWidget ? "pb-24" : "pb-4"
       )}
     >
@@ -424,116 +428,244 @@ export function MenuContent({
         </div>
       </header>
 
-      <main className="p-4">
+      <main className={cn("flex-1", layoutMode === "default" && "p-4")}>
         {!canAdd && renderNoTableWarning()}
 
-        <div className="pb-4">
-          <div className="flex space-x-2 overflow-x-auto pb-2 -mx-4 px-4">
-            <Button
-              variant={selectedCategory === "all" ? "default" : "outline"}
-              className={cn(
-                "rounded-full whitespace-nowrap flex items-center gap-2",
-                selectedCategory === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card"
-              )}
-              onClick={() => setSelectedCategory("all")}
-            >
-              All
-            </Button>
-            {dynamicCategories.map((category) => (
-              <Button
-                key={category.id}
-                variant={
-                  selectedCategory === category.name.toLowerCase()
-                    ? "default"
-                    : "outline"
-                }
-                className={cn(
-                  "rounded-full whitespace-nowrap flex items-center gap-2",
-                  selectedCategory === category.name.toLowerCase()
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card"
-                )}
-                onClick={() => setSelectedCategory(category.name.toLowerCase())}
-              >
-                <UtensilsCrossed className="h-4 w-4" />
-                {category.name}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredMenu.map((item) => (
-            <Card
-              key={item.id}
-              className={cn(
-                "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer",
-                !item.isAvailable && "opacity-60"
-              )}
-              onClick={() => setSelectedItem(item)}
-            >
-              <CardContent className="p-0">
-                <div className="relative">
-                  <Image
-                    src={item.image.url}
-                    alt={item.name}
-                    width={300}
-                    height={300}
-                    data-ai-hint={item.image.hint}
-                    className="aspect-square w-full object-cover"
-                  />
-
-                  {/* Dietary Badge */}
-                  {item.dietaryType === "eggitarian" ? (
-                    <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
-                      <Circle className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    </Badge>
-                  ) : item.isVegetarian || item.dietaryType === "veg" ? (
-                    <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
-                      <Circle className="h-4 w-4 text-green-600 fill-green-600" />
-                    </Badge>
-                  ) : (
-                    <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
-                      <Circle className="h-4 w-4 text-red-600 fill-red-600" />
-                    </Badge>
-                  )}
-
-                  {!item.isAvailable && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute top-2 left-2"
-                    >
-                      UNAVAILABLE
-                    </Badge>
-                  )}
-                </div>
-                <div className="p-3 space-y-2 flex flex-col">
-                  <h3 className="font-semibold text-sm truncate">
-                    {item.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 h-8 flex-grow">
-                    {item.description}
-                  </p>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="font-bold text-sm">
-                      ₹{item.price.toFixed(2)}
-                    </span>
+        {layoutMode === "split" ? (
+          <div className="flex flex-1 overflow-hidden border-t min-h-0">
+            {/* Categories */}
+            <div className="w-1/4 min-w-[200px] border-r bg-background">
+              <div className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider bg-background border-b">
+                Categories
+              </div>
+              <ScrollArea className="h-full">
+                <div className="flex flex-col p-2 space-y-1">
+                  <Button
+                    variant={selectedCategory === "all" ? "secondary" : "ghost"}
+                    className={cn(
+                      "justify-start font-normal",
+                      selectedCategory === "all" &&
+                        "bg-accent shadow-sm font-medium"
+                    )}
+                    onClick={() => setSelectedCategory("all")}
+                  >
+                    <UtensilsCrossed className="mr-2 h-4 w-4" />
+                    All Items
+                  </Button>
+                  {dynamicCategories.map((category) => (
                     <Button
-                      size="sm"
-                      className="h-8 rounded-full"
-                      onClick={(e) => handleAddToCart(item, e)}
-                      disabled={!item.isAvailable || !canAdd}
+                      key={category.id}
+                      variant={
+                        selectedCategory === category.name.toLowerCase()
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      className={cn(
+                        "justify-start font-normal",
+                        selectedCategory === category.name.toLowerCase() &&
+                          "bg-accent shadow-sm font-medium"
+                      )}
+                      onClick={() =>
+                        setSelectedCategory(category.name.toLowerCase())
+                      }
                     >
-                      Add
+                      <UtensilsCrossed className="mr-2 h-4 w-4 opacity-50" />
+                      {category.name}
                     </Button>
-                  </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </ScrollArea>
+            </div>
+
+            {/* Menu Items */}
+            <div className="flex-1 flex flex-col bg-background">
+              <div className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider border-b bg-background flex justify-between items-center">
+                <span>Menu Items</span>
+                <Badge variant="secondary">{filteredMenu.length} found</Badge>
+              </div>
+              <ScrollArea className="flex-1 p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
+                  {filteredMenu.map((item) => (
+                    <Card
+                      key={item.id}
+                      className={cn(
+                        "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer bg-background",
+                        !item.isAvailable && "opacity-60"
+                      )}
+                      onClick={() => setSelectedItem(item)}
+                    >
+                      <CardContent className="p-0">
+                        <div className="relative aspect-[4/3]">
+                          <Image
+                            src={item.image.url}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                          />
+                          {item.dietaryType === "eggitarian" ? (
+                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
+                              <Circle className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                            </Badge>
+                          ) : item.isVegetarian ||
+                            item.dietaryType === "veg" ? (
+                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
+                              <Circle className="h-3 w-3 text-green-600 fill-green-600" />
+                            </Badge>
+                          ) : (
+                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
+                              <Circle className="h-3 w-3 text-red-600 fill-red-600" />
+                            </Badge>
+                          )}
+                          {!item.isAvailable && (
+                            <Badge
+                              variant="destructive"
+                              className="absolute top-2 left-2"
+                            >
+                              UNAVAILABLE
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="p-3 space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <h3 className="font-medium text-sm leading-tight line-clamp-2">
+                              {item.name}
+                            </h3>
+                            <span className="font-bold text-sm whitespace-nowrap">
+                              ₹{item.price.toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2 h-8">
+                            {item.description}
+                          </p>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 rounded-md"
+                            onClick={(e) => handleAddToCart(item, e)}
+                            disabled={!item.isAvailable || !canAdd}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="pb-4">
+              <div className="flex space-x-2 overflow-x-auto pb-2 -mx-4 px-4">
+                <Button
+                  variant={selectedCategory === "all" ? "default" : "outline"}
+                  className={cn(
+                    "rounded-full whitespace-nowrap flex items-center gap-2",
+                    selectedCategory === "all"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card"
+                  )}
+                  onClick={() => setSelectedCategory("all")}
+                >
+                  All
+                </Button>
+                {dynamicCategories.map((category) => (
+                  <Button
+                    key={category.id}
+                    variant={
+                      selectedCategory === category.name.toLowerCase()
+                        ? "default"
+                        : "outline"
+                    }
+                    className={cn(
+                      "rounded-full whitespace-nowrap flex items-center gap-2",
+                      selectedCategory === category.name.toLowerCase()
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-card"
+                    )}
+                    onClick={() =>
+                      setSelectedCategory(category.name.toLowerCase())
+                    }
+                  >
+                    <UtensilsCrossed className="h-4 w-4" />
+                    {category.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredMenu.map((item) => (
+                <Card
+                  key={item.id}
+                  className={cn(
+                    "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer",
+                    !item.isAvailable && "opacity-60"
+                  )}
+                  onClick={() => setSelectedItem(item)}
+                >
+                  <CardContent className="p-0">
+                    <div className="relative">
+                      <Image
+                        src={item.image.url}
+                        alt={item.name}
+                        width={300}
+                        height={300}
+                        data-ai-hint={item.image.hint}
+                        className="aspect-square w-full object-cover"
+                      />
+
+                      {/* Dietary Badge */}
+                      {item.dietaryType === "eggitarian" ? (
+                        <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
+                          <Circle className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        </Badge>
+                      ) : item.isVegetarian || item.dietaryType === "veg" ? (
+                        <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
+                          <Circle className="h-4 w-4 text-green-600 fill-green-600" />
+                        </Badge>
+                      ) : (
+                        <Badge className="absolute top-2 right-2 bg-transparent p-1 rounded-full border-none">
+                          <Circle className="h-4 w-4 text-red-600 fill-red-600" />
+                        </Badge>
+                      )}
+
+                      {!item.isAvailable && (
+                        <Badge
+                          variant="destructive"
+                          className="absolute top-2 left-2"
+                        >
+                          UNAVAILABLE
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="p-3 space-y-2 flex flex-col">
+                      <h3 className="font-semibold text-sm truncate">
+                        {item.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground line-clamp-2 h-8 flex-grow">
+                        {item.description}
+                      </p>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-bold text-sm">
+                          ₹{item.price.toFixed(2)}
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-full"
+                          onClick={(e) => handleAddToCart(item, e)}
+                          disabled={!item.isAvailable || !canAdd}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Item Details Sheet */}
