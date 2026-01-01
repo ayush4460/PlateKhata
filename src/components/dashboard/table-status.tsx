@@ -45,12 +45,24 @@ export function TableStatus() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Table Status</CardTitle>
-        <CardDescription>
-          Live overview. Click on a table to manage orders, add items, or clear
-          it.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <div className="space-y-1">
+          <CardTitle>Table Status</CardTitle>
+          <CardDescription>
+            Live overview. Click on a table to manage orders, add items, or
+            clear it.
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-6 text-sm font-medium">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-600 ring-2 ring-green-600/20" />
+            <span className="text-muted-foreground">Available</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-yellow-500 ring-2 ring-yellow-500/20" />
+            <span className="text-muted-foreground">Occupied</span>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {isTablesLoading ? (

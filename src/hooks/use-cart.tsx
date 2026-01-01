@@ -796,6 +796,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     try {
       const queryParams = [
         "limit=1000", // Fetch all recent for status check
+        "status=pending",
+        "status=confirmed",
+        "status=preparing",
+        "status=ready",
+        "status=served",
       ].join("&");
 
       const res = await fetch(`${API_BASE}/orders?${queryParams}`, {
@@ -984,13 +989,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       .map((t) => {
         const idStr = String(t.table_id || t.id);
         const numStr = t.table_number || idStr;
-        // FIX: Use activeOrders (unfiltered) instead of pastOrders (filtered by date)
+        // FIX: Strict match on Table ID only to prevent "Off-By-K" errors where Table Number matches another Table's ID
         const isOccupied = activeOrders.some(
-          (o) =>
-            (o.tableNumber === idStr || o.tableNumber === numStr) &&
-            // Relaxed: Occupied until Completed
-            o.status !== "Completed" &&
-            o.status !== "Cancelled"
+          (o) => o.tableId === idStr
+          // Note: activeOrders is now pre-filtered by fetchActiveOrders to only include active statuses
         );
 
         return {
