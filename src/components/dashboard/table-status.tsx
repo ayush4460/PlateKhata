@@ -10,17 +10,32 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Armchair } from "lucide-react";
+import { Armchair, MoveHorizontal } from "lucide-react";
 import type { TableStatus as TableStatusType } from "@/lib/types";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 export function TableStatus() {
-  const { tableStatuses, isTablesLoading } = useCart();
+  const { tableStatuses, isTablesLoading, moveTable } = useCart();
   const router = useRouter();
   const params = useParams();
   const slug = params?.slug as string;
+  const { toast } = useToast();
+
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [sourceTable, setSourceTable] = useState<TableStatusType | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
 
   useEffect(() => {
     console.log("[DEBUG] TableStatus received:", tableStatuses);
@@ -87,7 +102,21 @@ export function TableStatus() {
                   )}
                   onClick={() => handleTableClick(table.tableNumber)}
                 >
-                  <div className="flex flex-col items-center gap-1 mt-2">
+                  <div className="flex flex-col items-center gap-1 mt-2 relative w-full">
+                    {table.status === "Occupied" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -top-3 -right-3 h-8 w-8 hover:bg-black/20 text-white rounded-full z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSourceTable(table);
+                          setIsMoveModalOpen(true);
+                        }}
+                      >
+                        <MoveHorizontal className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Armchair className="w-6 h-6 opacity-80" />
                     <p className="font-bold text-xl">#{table.tableNumber}</p>
                     {table.status === "Occupied" && table.totalAmount ? (
@@ -119,6 +148,57 @@ export function TableStatus() {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move Table #{sourceTable?.tableNumber}</DialogTitle>
+            <DialogDescription>
+              Select an available table to move current orders to.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[300px] pr-4">
+            <div className="grid grid-cols-3 gap-3">
+              {tableStatuses
+                .filter((t) => t.status === "Empty" && t.isAvailable)
+                .sort(
+                  (a, b) => parseInt(a.tableNumber) - parseInt(b.tableNumber)
+                )
+                .map((target) => (
+                  <Button
+                    key={target.id}
+                    variant="outline"
+                    className="flex flex-col h-auto py-4 hover:bg-green-500/10 hover:border-green-500"
+                    disabled={isMoving}
+                    onClick={async () => {
+                      if (!sourceTable) return;
+                      setIsMoving(true);
+                      try {
+                        await moveTable(sourceTable.id, target.id);
+                        toast({
+                          title: "Table moved successfully",
+                          description: `Moved #${sourceTable.tableNumber} -> #${target.tableNumber}`,
+                        });
+                        setIsMoveModalOpen(false);
+                      } catch (err: any) {
+                        toast({
+                          title: "Failed to move table",
+                          description: err.message,
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsMoving(false);
+                      }
+                    }}
+                  >
+                    <Armchair className="w-5 h-5 mb-1" />
+                    <span className="font-bold">#{target.tableNumber}</span>
+                  </Button>
+                ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

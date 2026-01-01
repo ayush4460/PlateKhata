@@ -138,6 +138,8 @@ interface CartContextType {
   createTable: (tableNumber: string, capacity: number) => Promise<boolean>;
   deleteTable: (tableId: number) => Promise<boolean>;
   clearTableSession: (tableId: number) => Promise<void>;
+  moveTable: (sourceTableId: number, targetTableId: number) => Promise<boolean>;
+  refreshTables: () => Promise<void>;
   analyticsPeriod: AnalyticsPeriod;
   setAnalyticsPeriod: (period: AnalyticsPeriod) => void;
   connectSocket: () => void;
@@ -2123,6 +2125,38 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Provide State and Actions through Context ---
 
+  const moveTable = useCallback(
+    async (sourceTableId: number, targetTableId: number) => {
+      try {
+        const res = await fetch(`${API_BASE}/tables/move`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+          body: JSON.stringify({ sourceTableId, targetTableId }),
+        });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.message || "Failed to move table");
+        }
+        // Refresh data after move
+        await fetchTables();
+        await fetchActiveOrders();
+        return true;
+      } catch (err) {
+        console.error("[useCart] Move table error:", err);
+        throw err;
+      }
+    },
+    [fetchTables, fetchActiveOrders]
+  );
+
+  const refreshTables = useCallback(async () => {
+    await fetchTables();
+    await fetchActiveOrders();
+  }, [fetchTables, fetchActiveOrders]);
+
   const value = {
     cart,
     addToCart,
@@ -2164,6 +2198,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     createTable,
     deleteTable,
     clearTableSession,
+    moveTable,
+    refreshTables,
     analyticsPeriod,
     setAnalyticsPeriod,
     connectSocket,
