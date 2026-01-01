@@ -202,7 +202,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             {activeTable ? activeTable.tableNumber : tableId}
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto bg-background">
+        <div className="flex-1 overflow-hidden bg-background">
           <MenuContent
             disableTokenVerification={true}
             enableCartWidget={false}

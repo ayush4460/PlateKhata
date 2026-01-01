@@ -1,10 +1,10 @@
 // src/components/auth/logout-button.tsx
-'use client';
+"use client";
 
-import { useAuth } from '@/hooks/use-auth';
-import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
-import { SidebarMenuButton } from '../ui/sidebar';
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import { useSidebar, SidebarMenuButton } from "@/components/ui/sidebar";
 
 export function LogoutButton() {
   const { logout } = useAuth();
@@ -20,11 +20,12 @@ export function LogoutButton() {
 
 // Special version for sidebars
 export function SidebarLogoutButton() {
-    const { logout } = useAuth();
-    return (
-        <SidebarMenuButton onClick={logout}>
-            <LogOut />
-            Logout
-        </SidebarMenuButton>
-    )
+  const { logout } = useAuth();
+  const { open } = useSidebar();
+  return (
+    <SidebarMenuButton onClick={logout} tooltip="Logout">
+      <LogOut />
+      {open && <span>Logout</span>}
+    </SidebarMenuButton>
+  );
 }

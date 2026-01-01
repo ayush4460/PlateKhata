@@ -389,7 +389,11 @@ export function MenuContent({
       className={cn(
         "bg-background",
         layoutMode === "split" ? "h-full flex flex-col" : "min-h-screen",
-        enableCartWidget ? "pb-24" : "pb-4"
+        enableCartWidget && layoutMode !== "split"
+          ? "pb-24"
+          : layoutMode !== "split"
+          ? "pb-4"
+          : ""
       )}
     >
       <header className="sticky top-0 bg-background/80 backdrop-blur-sm z-10 p-4 space-y-4 border-b">
@@ -428,17 +432,22 @@ export function MenuContent({
         </div>
       </header>
 
-      <main className={cn("flex-1", layoutMode === "default" && "p-4")}>
+      <main
+        className={cn(
+          "flex-1 flex flex-col min-h-0",
+          layoutMode === "default" && "p-4"
+        )}
+      >
         {!canAdd && renderNoTableWarning()}
 
         {layoutMode === "split" ? (
           <div className="flex flex-1 overflow-hidden border-t min-h-0">
             {/* Categories */}
-            <div className="w-1/4 min-w-[200px] border-r bg-background">
-              <div className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider bg-background border-b">
+            <div className="w-1/4 min-w-[200px] border-r bg-background flex flex-col overflow-hidden">
+              <div className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider bg-background border-b flex-shrink-0">
                 Categories
               </div>
-              <ScrollArea className="h-full">
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="flex flex-col p-2 space-y-1">
                   <Button
                     variant={selectedCategory === "all" ? "secondary" : "ghost"}
@@ -474,7 +483,7 @@ export function MenuContent({
                     </Button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             {/* Menu Items */}
@@ -483,7 +492,7 @@ export function MenuContent({
                 <span>Menu Items</span>
                 <Badge variant="secondary">{filteredMenu.length} found</Badge>
               </div>
-              <ScrollArea className="flex-1 p-4">
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
                   {filteredMenu.map((item) => (
                     <Card
@@ -550,7 +559,7 @@ export function MenuContent({
                     </Card>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </div>
         ) : (
