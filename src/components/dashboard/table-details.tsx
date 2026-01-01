@@ -209,7 +209,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             layoutMode="split"
             customTableId={
               activeTable ? Number(activeTable.tableNumber) : Number(tableId)
-            } // Pass Number for display
+            }
           />
         </div>
       </div>
