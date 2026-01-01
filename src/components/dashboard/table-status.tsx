@@ -29,11 +29,11 @@ export function TableStatus() {
   const getStatusStyles = (status: TableStatusType["status"]) => {
     switch (status) {
       case "Empty":
-        return "bg-green-50 border-green-200 text-green-800 hover:bg-green-100";
+        return "bg-status-empty-bg border-border text-status-empty-text hover:opacity-90";
       case "Occupied":
-        return "bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100";
+        return "bg-status-occupied-bg border-border text-status-occupied-text hover:opacity-90";
       default:
-        return "bg-gray-50 border-gray-200 hover:bg-gray-100";
+        return "bg-muted border-border hover:bg-muted/80";
     }
   };
 

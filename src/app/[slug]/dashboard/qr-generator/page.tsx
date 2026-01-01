@@ -1,4 +1,4 @@
-// src/app/dashboard/qr-generator/page.tsx
+// src/app/[slug]/dashboard/qr-generator/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -225,7 +225,7 @@ export default function QrGeneratorPage() {
                       />
                     </div>
                   ) : (
-                    <div className="w-[150px] h-[150px] flex items-center justify-center bg-gray-100 text-gray-400 text-xs">
+                    <div className="w-[150px] h-[150px] flex items-center justify-center bg-muted text-muted-foreground text-xs">
                       QR Not Available
                     </div>
                   )}

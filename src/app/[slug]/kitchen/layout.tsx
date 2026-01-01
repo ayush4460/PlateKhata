@@ -1,4 +1,4 @@
-// src/app/kitchen/layout.tsx
+// src/app/[slug]/kitchen/layout.tsx
 "use client";
 
 import { UtensilsCrossed } from "lucide-react";
@@ -105,7 +105,7 @@ export default function KitchenLayout({
           </span>
         </div>
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 bg-food-pattern bg-fixed">
         {children}
       </main>
     </div>

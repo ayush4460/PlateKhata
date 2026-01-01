@@ -1,3 +1,4 @@
+//app/slug/dashboard/analytics/page.tsx
 "use client";
 
 import { SalesChart } from "@/components/dashboard/sales-chart";

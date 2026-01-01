@@ -1,3 +1,4 @@
+//app/slug/dashboard/online-orders/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -440,7 +441,7 @@ export default function OnlineOrdersPage() {
                       {(order.order_status === "confirmed" ||
                         order.order_status === "preparing") && (
                         <div className="col-span-2 space-y-2">
-                          <div className="text-center text-sm font-semibold text-blue-500 animate-pulse">
+                          <div className="text-center text-sm font-semibold text-primary animate-pulse">
                             PREPARING...
                           </div>
                           <Button

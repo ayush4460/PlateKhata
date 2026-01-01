@@ -16,12 +16,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PaymentStats } from "@/lib/types";
+import { CHART_COLORS } from "@/lib/theme-config";
 
 interface PaymentPieChartProps {
   data: PaymentStats[];
 }
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+const COLORS = CHART_COLORS.pie;
 
 export function PaymentPieChart({ data }: PaymentPieChartProps) {
   const chartData = data.filter((item) => item.value > 0);

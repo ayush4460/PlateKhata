@@ -18,6 +18,7 @@ import type { UserOptions } from "jspdf-autotable";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PaymentModal } from "@/components/payment/payment-modal";
+import { RECEIPT_THEME } from "@/lib/theme-config";
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: UserOptions) => jsPDF;
@@ -211,18 +212,18 @@ export default function OrdersPage() {
     const firstOrder = allDisplayedOrders[0];
 
     // Modern gradient header with soft pink
-    doc.setFillColor(255, 228, 230);
+    doc.setFillColor(...RECEIPT_THEME.headerBackground);
     doc.rect(0, 0, pageWidth, 55, "F");
 
     // Restaurant name with elegant styling
     doc.setFontSize(32);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(236, 72, 153); // Pink
+    doc.setTextColor(...RECEIPT_THEME.brandText);
     doc.text("Axios", pageWidth / 2, 25, { align: "center" });
 
     doc.setFontSize(11);
     doc.setFont("helvetica", "italic");
-    doc.setTextColor(134, 25, 143); // Deep pink
+    doc.setTextColor(...RECEIPT_THEME.brandText);
     doc.text("Where Every Meal is a Celebration", pageWidth / 2, 35, {
       align: "center",
     });
@@ -241,7 +242,7 @@ export default function OrdersPage() {
     // Receipt title
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(34, 197, 94); // Green
+    doc.setTextColor(...RECEIPT_THEME.subText);
     doc.text("TAX INVOICE", pageWidth / 2, 68, { align: "center" });
 
     // Info section with cream background
@@ -256,7 +257,7 @@ export default function OrdersPage() {
     // Customer details column
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(236, 72, 153); // Pink
+    doc.setTextColor(...RECEIPT_THEME.brandText);
     doc.text("CUSTOMER", 18, 82);
 
     doc.setFont("helvetica", "normal");
@@ -268,7 +269,7 @@ export default function OrdersPage() {
 
     // Order details column
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(34, 197, 94); // Green
+    doc.setTextColor(...RECEIPT_THEME.subText);
     doc.setFontSize(9);
     doc.text("ORDER DETAILS", pageWidth / 2 + 5, 82);
 
@@ -432,9 +433,9 @@ export default function OrdersPage() {
     yPos += 6;
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(236, 72, 153); // Pink
+    doc.setTextColor(...RECEIPT_THEME.brandText);
     doc.text("Grand Total:", pageWidth - 90, yPos);
-    doc.setTextColor(34, 197, 94); // Green
+    doc.setTextColor(...RECEIPT_THEME.subText);
     doc.setFontSize(14);
     doc.text(formatCurrency(sessionTotals.total), pageWidth - 18, yPos, {
       align: "right",
@@ -462,7 +463,7 @@ export default function OrdersPage() {
 
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(236, 72, 153); // Pink
+      doc.setTextColor(...RECEIPT_THEME.brandText);
       doc.text(
         `${allDisplayedOrders.length} orders combined`,
         pageWidth - 54.5,
@@ -483,7 +484,7 @@ export default function OrdersPage() {
     // Thank you message with icons (using text)
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(236, 72, 153); // Pink
+    doc.setTextColor(...RECEIPT_THEME.brandText);
     doc.text("Thank You!", pageWidth / 2, footerY + 10, { align: "center" });
 
     doc.setFontSize(10);

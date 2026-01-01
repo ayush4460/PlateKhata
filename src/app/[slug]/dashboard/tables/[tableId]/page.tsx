@@ -1,3 +1,4 @@
+//src/app/[slug]/dashboard/tables/[tableId]/page.tsx
 "use client";
 
 import { TableDetails } from "@/components/dashboard/table-details";

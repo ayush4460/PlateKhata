@@ -1,3 +1,4 @@
+//src/app/[slug]/dashboard/page.tsx
 import { RecentOrders } from "@/components/dashboard/recent-orders";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { OnlineSalesChart } from "@/components/dashboard/online-sales-chart";

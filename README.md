@@ -78,7 +78,7 @@ A modern, responsive web application for restaurant customers to browse menus, p
    ```bash
    npm run dev
    ```
-   
+
    The application will be available at `http://localhost:9002`
 
 ## Development
