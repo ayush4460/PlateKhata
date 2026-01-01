@@ -36,11 +36,20 @@ import {
   eachMonthOfInterval,
   startOfToday,
   endOfToday,
+  startOfDay,
+  endOfDay,
   startOfYear,
   endOfYear,
   formatDistanceToNow,
   parseISO,
 } from "date-fns";
+import {
+  getISTDate,
+  getISTStartOfDay,
+  getISTEndOfDay,
+  toISTDisplayDate,
+  getISTDayRange,
+} from "@/lib/utils";
 import { io, Socket } from "socket.io-client";
 import { useRouter, usePathname } from "next/navigation";
 import { QRCodeCanvas } from "qrcode.react";
@@ -204,7 +213,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
   userPhone: order.customer_phone,
   tableNumber: order.table_number || String(order.table_id),
   tableId: String(order.table_id), // Added
-  date: order.created_at,
+  date: Number(order.created_at) || 0, // Fallback to 0 to prevent NaN
   status: (order.order_status.charAt(0).toUpperCase() +
     order.order_status.slice(1)) as PastOrder["status"],
   paymentStatus: order.payment_status || "Pending",
@@ -228,23 +237,28 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
 
 const mapBackendOrderToKitchenOrder = (
   order: BackendOrder
-): KitchenOrder & { created_at: string } => ({
-  id: String(order.order_id),
-  orderNumber: order.order_number,
-  table: order.table_number || String(order.table_id),
-  items: (order.items || []).map((item) => ({
-    name: item.item_name || "N/A",
-    quantity: item.quantity,
-    specialInstructions: item.special_instructions,
-    category: item.item_category || "Uncategorized",
-    spiceLevel: item.spice_level, // Added
-  })),
-  time: formatDistanceToNow(new Date(order.created_at), { addSuffix: true }),
-  status: order.order_status as any,
-  created_at: order.created_at,
-  orderType: order.order_type,
-  platform: order.external_platform, // Added
-});
+): KitchenOrder & { created_at: number } => {
+  const createdAt = Number(order.created_at) || Date.now();
+  return {
+    id: String(order.order_id),
+    orderNumber: order.order_number,
+    table: order.table_number || String(order.table_id),
+    items: (order.items || []).map((item) => ({
+      name: item.item_name || "N/A",
+      quantity: item.quantity,
+      specialInstructions: item.special_instructions,
+      category: item.item_category || "Uncategorized",
+      spiceLevel: item.spice_level, // Added
+    })),
+    time: formatDistanceToNow(new Date(createdAt), {
+      addSuffix: true,
+    }),
+    status: order.order_status as any,
+    created_at: createdAt,
+    orderType: order.order_type,
+    platform: order.external_platform, // Added
+  };
+};
 
 // Default empty analytics structure
 const defaultAnalytics: AnalyticsData = {
@@ -263,6 +277,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const isSubmittingRef = useRef(false);
   const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
+  const [activeOrders, setActiveOrders] = useState<PastOrder[]>([]); // NEW: For Table Status (Unfiltered)
   const [kitchenOrders, setKitchenOrders] = useState<KitchenOrdersState>({
     new: [],
     "in-progress": [],
@@ -289,13 +304,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const setAnalyticsPeriod = useCallback((period: AnalyticsPeriod) => {
     setAnalyticsPeriodState(period);
 
-    const now = new Date();
+    // Use IST Date for reference
+    const now = getISTDate();
     let start, end;
 
     switch (period) {
       case "daily":
-        start = startOfToday();
-        end = endOfToday();
+        start = getISTStartOfDay();
+        end = getISTEndOfDay();
         break;
       case "weekly":
         start = startOfWeek(now, { weekStartsOn: 1 });
@@ -456,6 +472,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Explicitly fetch tables on mount to ensure Admin Dashboard loads immediately
       fetchTables();
+      fetchActiveOrders(); // NEW: Initial fetch
     }
 
     const storedUpiId = localStorage.getItem("upiId");
@@ -593,9 +610,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Invalid data format");
       }
 
-      const newO: (KitchenOrder & { created_at: string })[] = [];
-      const inProg: (KitchenOrder & { created_at: string })[] = [];
-      const ready: (KitchenOrder & { created_at: string })[] = [];
+      const newO: (KitchenOrder & { created_at: number })[] = [];
+      const inProg: (KitchenOrder & { created_at: number })[] = [];
+      const ready: (KitchenOrder & { created_at: number })[] = [];
 
       orders.forEach((o) => {
         const ko = mapBackendOrderToKitchenOrder(o);
@@ -609,9 +626,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       });
 
       const sortByDateDesc = (
-        a: { created_at: string },
-        b: { created_at: string }
-      ) => parseISO(b.created_at).getTime() - parseISO(a.created_at).getTime();
+        a: { created_at: number },
+        b: { created_at: number }
+      ) => b.created_at - a.created_at;
 
       newO.sort(sortByDateDesc);
       inProg.sort(sortByDateDesc);
@@ -672,6 +689,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           queryParams.push(`endDate=${orderFilters.endDate}`);
 
         url = `${API_BASE}/orders?${queryParams.join("&")}`;
+        console.log("[DEBUG FETCH] Fetching orders with URL:", url); // ADDED LOG
 
         Object.assign(headers, authHeaders());
         //console.log('[DEBUG FETCH] Admin/Dashboard mode - URL:', url);
@@ -771,6 +789,40 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [sessionToken, tableNumber, toast, orderFilters, pathname]
   );
 
+  // --- NEW: Fetch Active Orders (Unfiltered by Date) for Table Status ---
+  const fetchActiveOrders = useCallback(async () => {
+    if (!hasAuthToken()) return; // Only for admins/staff usually
+
+    try {
+      const queryParams = [
+        "limit=1000", // Fetch all recent for status check
+      ].join("&");
+
+      const res = await fetch(`${API_BASE}/orders?${queryParams}`, {
+        headers: { ...authHeaders() },
+      });
+
+      if (!res.ok) return;
+
+      const responseData = await res.json();
+      const orders: BackendOrder[] = extractArrayFromResponse(
+        responseData,
+        "fetchActiveOrders"
+      );
+
+      // We only need this for calculating occupancy, so raw mapping is fine
+      const mapped = orders.map(mapBackendOrderToPastOrder);
+      setActiveOrders(mapped);
+      console.log(
+        "[DEBUG ACTIVE] Fetched",
+        mapped.length,
+        "active orders for status check"
+      );
+    } catch (err) {
+      console.error("[useCart] Failed to fetch active orders:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!sessionToken && !hasAuthToken()) {
       //console.log('[DEBUG SESSION EFFECT] No session token or auth, skipping fetch');
@@ -813,9 +865,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const handleConnect = () => {
       console.log("[DEBUG SOCKET] Connected");
       fetchRelevantOrders();
+      fetchRelevantOrders();
       if (hasAuthToken()) {
         fetchTables();
         fetchKitchenOrders();
+        fetchActiveOrders(); // NEW
         socket.emit("join:kitchen");
       }
     };
@@ -827,7 +881,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         description: `Table ${order?.table_id}`,
       });
       fetchRelevantOrders();
-      if (hasAuthToken()) fetchKitchenOrders();
+      fetchRelevantOrders();
+      if (hasAuthToken()) {
+        fetchKitchenOrders();
+        fetchActiveOrders(); // NEW
+      }
     };
 
     const handleStatusUpdate = (data: {
@@ -845,7 +903,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       });
       console.log("[DEBUG SOCKET] Triggering fetchRelevantOrders()");
       fetchRelevantOrders();
-      if (hasAuthToken()) fetchKitchenOrders();
+      fetchRelevantOrders();
+      if (hasAuthToken()) {
+        fetchKitchenOrders();
+        fetchActiveOrders(); // NEW
+      }
     };
 
     const handleDisconnect = (reason: any) => {
@@ -922,10 +984,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       .map((t) => {
         const idStr = String(t.table_id || t.id);
         const numStr = t.table_number || idStr;
-        const isOccupied = pastOrders.some(
+        // FIX: Use activeOrders (unfiltered) instead of pastOrders (filtered by date)
+        const isOccupied = activeOrders.some(
           (o) =>
             (o.tableNumber === idStr || o.tableNumber === numStr) &&
-            o.paymentStatus === "Pending" &&
+            // Relaxed: Occupied until Completed
             o.status !== "Completed" &&
             o.status !== "Cancelled"
         );
@@ -941,7 +1004,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       });
 
     return derived;
-  }, [pastOrders, backendTables]);
+  }, [activeOrders, backendTables]); // Dependency changed pastOrders -> activeOrders
 
   // --- Table, Tax, Menu Management ---
   const setTable = useCallback(
@@ -1836,27 +1899,47 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return defaultAnalytics;
     }
 
-    const now = new Date();
     const approvedOrders = pastOrders.filter(
       (o) => o.paymentStatus === "Approved"
     );
 
-    const getPeriodInterval = (period: AnalyticsPeriod) => {
-      if (period === "daily") {
-        return { start: startOfToday(), end: endOfToday() };
-      }
-      if (period === "weekly") {
-        return { start: startOfWeek(now), end: endOfWeek(now) };
-      }
-      if (period === "monthly") {
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      }
-      return { start: new Date(0), end: now };
+    const { start: todayStart, end: todayEnd } = getISTDayRange(); // Defaults to now
+
+    // Helper to convert Fake Local Date (from date-fns helpers) to Absolute IST Epoch
+    const toEpoch = (fakeLocal: Date, isEnd = false) => {
+      // Format as YYYY-MM-DDTHH:mm:ss.SSS
+      // We assume fakeLocal has correct IST components in local time slots.
+      // We explicitly append +05:30 to treat it as IST.
+      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
+      return new Date(iso).getTime();
     };
 
-    const interval = getPeriodInterval(analyticsPeriod);
-    const periodOrders = approvedOrders.filter((o) =>
-      isWithinInterval(new Date(o.date), interval)
+    const nowFake = toISTDisplayDate(Date.now()); // Fake Local for date-fns math
+
+    const getPeriodInterval = (period: AnalyticsPeriod) => {
+      if (period === "daily") {
+        return { start: todayStart, end: todayEnd };
+      }
+      if (period === "weekly") {
+        return {
+          start: toEpoch(startOfWeek(nowFake, { weekStartsOn: 1 })),
+          end: toEpoch(endOfWeek(nowFake, { weekStartsOn: 1 })),
+        };
+      }
+      if (period === "monthly") {
+        return {
+          start: toEpoch(startOfMonth(nowFake)),
+          end: toEpoch(endOfMonth(nowFake)),
+        };
+      }
+      // All time
+      return { start: 0, end: Date.now() };
+    };
+
+    const { start, end } = getPeriodInterval(analyticsPeriod);
+
+    const periodOrders = approvedOrders.filter(
+      (o) => o.date >= start && o.date <= end
     );
 
     const totalRevenue = periodOrders.reduce(
@@ -1888,60 +1971,73 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const salesData = useMemo(() => {
     if (!hasAuthToken() || !Array.isArray(pastOrders)) return [];
 
-    const now = new Date();
+    const nowFake = toISTDisplayDate(Date.now());
     const approvedOrders = pastOrders.filter(
       (o) => o.paymentStatus === "Approved"
     );
 
-    let interval: { start: Date; end: Date };
-    let formatKey = "E"; // Default day representation
+    // Initialize map keys using Fake Local Date (for iteration)
+    let intervalFake: { start: Date; end: Date };
+    let formatKey = "E";
     let dateData: Record<string, number> = {};
 
     if (analyticsPeriod === "daily") {
-      interval = { start: startOfToday(), end: endOfToday() };
+      intervalFake = { start: startOfToday(), end: endOfToday() }; // Uses local system time, effectively iterating 00-23 hours
+      // Better: Construct from IST fake
+      intervalFake = { start: startOfDay(nowFake), end: endOfDay(nowFake) };
       formatKey = "HH:00";
       try {
-        dateData = eachHourOfInterval(interval).reduce(
+        dateData = eachHourOfInterval(intervalFake).reduce(
           (acc, hour) => ({ ...acc, [format(hour, "HH:00")]: 0 }),
           {}
         );
       } catch (e) {
-        // Fallback if interval is invalid
         dateData = {};
       }
     } else if (analyticsPeriod === "weekly") {
-      interval = {
-        start: startOfWeek(now, { weekStartsOn: 1 }),
-        end: endOfWeek(now, { weekStartsOn: 1 }),
+      intervalFake = {
+        start: startOfWeek(nowFake, { weekStartsOn: 1 }),
+        end: endOfWeek(nowFake, { weekStartsOn: 1 }),
       };
       formatKey = "E";
-      dateData = eachDayOfInterval(interval).reduce(
+      dateData = eachDayOfInterval(intervalFake).reduce(
         (acc, day) => ({ ...acc, [format(day, "E")]: 0 }),
         {}
       );
     } else if (analyticsPeriod === "monthly") {
-      interval = { start: startOfMonth(now), end: endOfMonth(now) };
+      intervalFake = { start: startOfMonth(nowFake), end: endOfMonth(nowFake) };
       formatKey = "d";
-      dateData = eachDayOfInterval(interval).reduce(
+      dateData = eachDayOfInterval(intervalFake).reduce(
         (acc, day) => ({ ...acc, [format(day, "d")]: 0 }),
         {}
       );
     } else {
-      // All Time defaults to current year view
-      interval = { start: startOfYear(now), end: endOfYear(now) };
+      intervalFake = { start: startOfYear(nowFake), end: endOfYear(nowFake) };
       formatKey = "MMM";
-      dateData = eachMonthOfInterval(interval).reduce(
+      dateData = eachMonthOfInterval(intervalFake).reduce(
         (acc, month) => ({ ...acc, [format(month, "MMM")]: 0 }),
         {}
       );
     }
 
-    const filteredOrders = approvedOrders.filter((o) =>
-      isWithinInterval(new Date(o.date), interval)
+    // Filter using Absolute IST Epochs logic
+    // We reuse the logic from analytics useMemo or duplicate it here for safety
+    const toEpoch = (fakeLocal: Date) => {
+      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
+      return new Date(iso).getTime();
+    };
+
+    const startEpoch = toEpoch(intervalFake.start);
+    const endEpoch = toEpoch(intervalFake.end);
+
+    const filteredOrders = approvedOrders.filter(
+      (o) => o.date >= startEpoch && o.date <= endEpoch
     );
 
     filteredOrders.forEach((order) => {
-      const key = format(new Date(order.date), formatKey);
+      // Convert Order Epoch to IST Fake Local for formatting
+      const istDate = toISTDisplayDate(order.date);
+      const key = format(istDate, formatKey);
       if (dateData[key] !== undefined) {
         dateData[key] += order.total;
       }
@@ -1957,27 +2053,42 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const paymentStats = useMemo(() => {
     if (!hasAuthToken() || !Array.isArray(pastOrders)) return [];
 
-    const now = new Date();
+    const nowFake = toISTDisplayDate(Date.now());
     const approvedOrders = pastOrders.filter(
       (o) => o.paymentStatus === "Approved"
     );
 
-    const getPeriodInterval = (period: AnalyticsPeriod) => {
-      if (period === "daily")
-        return { start: startOfToday(), end: endOfToday() };
-      if (period === "weekly")
-        return {
-          start: startOfWeek(now, { weekStartsOn: 1 }),
-          end: endOfWeek(now, { weekStartsOn: 1 }),
-        };
-      if (period === "monthly")
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      return { start: startOfYear(now), end: endOfYear(now) };
+    const toEpoch = (fakeLocal: Date) => {
+      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
+      return new Date(iso).getTime();
     };
 
-    const interval = getPeriodInterval(analyticsPeriod);
-    const periodOrders = approvedOrders.filter((o) =>
-      isWithinInterval(new Date(o.date), interval)
+    const getPeriodInterval = (period: AnalyticsPeriod) => {
+      if (period === "daily") {
+        const { start, end } = getISTDayRange();
+        return { start, end };
+      }
+      if (period === "weekly") {
+        return {
+          start: toEpoch(startOfWeek(nowFake, { weekStartsOn: 1 })),
+          end: toEpoch(endOfWeek(nowFake, { weekStartsOn: 1 })),
+        };
+      }
+      if (period === "monthly") {
+        return {
+          start: toEpoch(startOfMonth(nowFake)),
+          end: toEpoch(endOfMonth(nowFake)),
+        };
+      }
+      return {
+        start: toEpoch(startOfYear(nowFake)),
+        end: toEpoch(endOfYear(nowFake)),
+      };
+    };
+
+    const { start, end } = getPeriodInterval(analyticsPeriod);
+    const periodOrders = approvedOrders.filter(
+      (o) => o.date >= start && o.date <= end
     );
 
     const stats: Record<string, { value: number; count: number }> = {};

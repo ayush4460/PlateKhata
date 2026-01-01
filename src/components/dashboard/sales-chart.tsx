@@ -31,31 +31,27 @@ import {
   startOfYear,
   endOfYear,
 } from "date-fns";
+import {
+  getISTDate,
+  getISTStartOfDay,
+  getISTEndOfDay,
+  getISTPeriodEpochRange,
+  toISTDisplayDate,
+} from "@/lib/utils";
 
 export function SalesChart() {
   const { salesData, analyticsPeriod, paymentStats, pastOrders } = useCart(); // paymentStats added to hook
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
-    const now = new Date();
-    let start, end;
+    const { start, end } = getISTPeriodEpochRange(analyticsPeriod);
 
-    if (analyticsPeriod === "daily") {
-      start = startOfToday();
-      end = endOfToday();
-    } else if (analyticsPeriod === "weekly") {
-      start = startOfWeek(now, { weekStartsOn: 1 });
-      end = endOfWeek(now, { weekStartsOn: 1 });
-    } else if (analyticsPeriod === "monthly") {
-      start = startOfMonth(now);
-      end = endOfMonth(now);
-    } else {
-      start = startOfYear(now);
-      end = endOfYear(now);
-    }
+    // Format start/end for display (convert to Fake Local Date first)
+    const startDisplay = toISTDisplayDate(start);
+    const endDisplay = toISTDisplayDate(end);
 
-    const dateRangeStr = `${format(start, "MMM d, yyyy")} - ${format(
-      end,
+    const dateRangeStr = `${format(startDisplay, "MMM d, yyyy")} - ${format(
+      endDisplay,
       "MMM d, yyyy"
     )}`;
 
@@ -128,11 +124,7 @@ export function SalesChart() {
 
     // We can cast here because we know pastOrders is an array if we are here (from useCart check)
     const approvedOrders = (pastOrders || []).filter(
-      (o) =>
-        o.paymentStatus === "Approved" &&
-        // @ts-ignore - isWithinInterval types can be tricky with string dates
-        new Date(o.date) >= start &&
-        new Date(o.date) <= end
+      (o) => o.paymentStatus === "Approved" && o.date >= start && o.date <= end
     );
 
     doc.setFontSize(14);
@@ -140,12 +132,10 @@ export function SalesChart() {
     currentY += 4;
 
     // Sort by date desc
-    const sortedOrders = approvedOrders.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    const sortedOrders = approvedOrders.sort((a, b) => b.date - a.date);
 
     const transactionRows = sortedOrders.map((o) => [
-      format(new Date(o.date), "MMM d, HH:mm"),
+      format(toISTDisplayDate(o.date), "MMM d, HH:mm"),
       o.orderNumber || o.id.slice(-6),
       o.paymentMethod || "Unknown",
       `Rs. ${o.total.toFixed(2)}`,
@@ -158,7 +148,9 @@ export function SalesChart() {
       theme: "striped",
     });
 
-    doc.save(`Sales_Report_${analyticsPeriod}_${format(now, "yyyyMMdd")}.pdf`);
+    doc.save(
+      `Sales_Report_${analyticsPeriod}_${format(new Date(), "yyyyMMdd")}.pdf`
+    );
   };
 
   return (

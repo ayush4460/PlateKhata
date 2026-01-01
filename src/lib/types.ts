@@ -55,7 +55,7 @@ export interface BackendOrder {
   order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';  // Added 'served'
   payment_status: 'Pending' | 'Approved';
   payment_method?: 'Cash' | 'UPI' | 'Card' | 'Other';
-  created_at: string; // ISO date string
+  created_at: number; // Epoch timestamp (BIGINT from DB)
   items: BackendOrderItem[];
   order_type: 'regular' | 'addon' | 'online';
   external_platform?: string; // zomaoto, swiggy
@@ -70,7 +70,7 @@ export interface PastOrder {
   userPhone: string;
   tableNumber: string;
   tableId: string; // Added for precise filtering
-  date: string;
+  date: number; // Epoch timestamp
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Ready' | 'Served' | 'Completed' | 'Cancelled';
   paymentStatus: 'Pending' | 'Approved' | 'Requested';
   paymentMethod?: string;
@@ -104,7 +104,7 @@ export interface KitchenOrder {
   }[];
   time: string;
   status: 'confirmed' | 'preparing' | 'ready';
-  created_at: string;
+  created_at: number;
   orderType: 'regular' | 'addon' | 'online';
   platform?: string; // Added
 }
@@ -157,7 +157,7 @@ export interface Category {
   name: string;
   display_order: number;
   is_active: boolean;
-  created_at?: string;
+  created_at?: number;
 }
 
 export type CreateCategoryDTO = Pick<Category, 'name' | 'display_order'> & { restaurantId?: number };

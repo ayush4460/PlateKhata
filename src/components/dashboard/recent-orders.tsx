@@ -67,12 +67,15 @@ import {
   endOfToday,
   startOfYesterday,
   endOfYesterday,
+  startOfDay,
+  endOfDay,
 } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { PastOrder } from "@/lib/types";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getISTDate, getISTStartOfDay, getISTEndOfDay } from "@/lib/utils";
 
 // Sub-component for the expanded session details
 function SessionDetails({
@@ -275,31 +278,33 @@ export function RecentOrders() {
 
   // Date Filtering State
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfToday(),
-    to: endOfToday(),
+    from: getISTStartOfDay(),
+    to: getISTEndOfDay(),
   });
   const [activeFilter, setActiveFilter] = useState<string>("today");
 
   // Initial Filter Application
   useEffect(() => {
-    const from = format(startOfToday(), "yyyy-MM-dd");
-    const to = format(endOfToday(), "yyyy-MM-dd");
+    const from = format(getISTStartOfDay(), "yyyy-MM-dd");
+    const to = format(getISTEndOfDay(), "yyyy-MM-dd");
     setOrderFilters({ startDate: from, endDate: to });
   }, []);
 
   const handlePresetChange = (preset: string) => {
     setActiveFilter(preset);
     let from, to;
-    const now = new Date();
+
+    // Use IST Date
+    const now = getISTDate();
 
     switch (preset) {
       case "today":
-        from = startOfToday();
-        to = endOfToday();
+        from = getISTStartOfDay();
+        to = getISTEndOfDay();
         break;
       case "yesterday":
-        from = startOfYesterday();
-        to = endOfYesterday();
+        from = startOfDay(subDays(now, 1));
+        to = endOfDay(subDays(now, 1));
         break;
       case "week":
         from = startOfWeek(now, { weekStartsOn: 1 });
@@ -553,9 +558,7 @@ export function RecentOrders() {
         const tax = group.reduce((sum, o) => sum + (o.tax || 0), 0);
         const discount = group.reduce((sum, o) => sum + (o.discount || 0), 0);
 
-        group.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        group.sort((a, b) => b.date - a.date);
         const latestOrder = group[0];
         const regularOrder = group.find((o) => o.orderType === "regular");
 
@@ -608,10 +611,7 @@ export function RecentOrders() {
         };
       })
       .sort((a, b) => {
-        return (
-          new Date(b.orders[0].date).getTime() -
-          new Date(a.orders[0].date).getTime()
-        );
+        return b.orders[0].date - a.orders[0].date;
       });
 
     return result;
@@ -666,7 +666,9 @@ export function RecentOrders() {
           <CardHeader className="flex flex-col space-y-4 pb-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <CardTitle>Orders & Sessions ({groupedOrders.length})</CardTitle>
+                <CardTitle>
+                  Orders & Sessions ({groupedOrders.length})
+                </CardTitle>
                 <CardDescription>
                   {activeFilter === "today" && "Showing orders for today"}
                   {activeFilter === "yesterday" &&
