@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Armchair } from "lucide-react";
 import type { TableStatus as TableStatusType } from "@/lib/types";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 
 export function TableStatus() {
@@ -90,12 +90,22 @@ export function TableStatus() {
                   <div className="flex flex-col items-center gap-1 mt-2">
                     <Armchair className="w-6 h-6 opacity-80" />
                     <p className="font-bold text-xl">#{table.tableNumber}</p>
-                    <Badge
-                      variant="outline"
-                      className="bg-black/70 border-0 text-[12px] h-7 mt-2"
-                    >
-                      {table.status}
-                    </Badge>
+                    {table.status === "Occupied" && table.totalAmount ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-black/70 border-0 text-[12px] h-7 mt-2 font-bold"
+                      >
+                        {new Intl.NumberFormat("en-IN", {
+                          style: "currency",
+                          currency: "INR",
+                        }).format(table.totalAmount)}
+                      </Badge>
+                    ) : (
+                      <div className="h-7 mt-2" /> // Maintain layout spacing
+                    )}
+                    {table.status === "Occupied" && table.occupiedSince && (
+                      <TableTimer startTime={table.occupiedSince} />
+                    )}
                   </div>
                 </Card>
               ))}
@@ -110,5 +120,36 @@ export function TableStatus() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function TableTimer({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    const update = () => {
+      const now = Date.now();
+      const diff = now - startTime;
+      if (diff < 0) return setElapsed("00:00");
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const h = hours > 0 ? `${hours}:` : "";
+      const m = mins.toString().padStart(2, "0");
+      const s = secs.toString().padStart(2, "0");
+      setElapsed(`${h}${m}:${s}`);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  return (
+    <span className="text-xs text-muted-foreground font-mono mt-1">
+      {elapsed}
+    </span>
   );
 }

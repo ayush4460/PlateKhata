@@ -990,10 +990,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         const idStr = String(t.table_id || t.id);
         const numStr = t.table_number || idStr;
         // FIX: Strict match on Table ID only to prevent "Off-By-K" errors where Table Number matches another Table's ID
-        const isOccupied = activeOrders.some(
-          (o) => o.tableId === idStr
-          // Note: activeOrders is now pre-filtered by fetchActiveOrders to only include active statuses
+        const tableOrders = activeOrders.filter((o) => o.tableId === idStr);
+        const isOccupied = tableOrders.length > 0;
+        const totalAmount = tableOrders.reduce(
+          (sum, o) => sum + (o.total || 0),
+          0
         );
+
+        // Find earliest order time
+        const occupiedSince =
+          tableOrders.length > 0
+            ? Math.min(...tableOrders.map((o) => o.date || Date.now()))
+            : undefined;
 
         return {
           id: t.table_id || t.id,
@@ -1002,6 +1010,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           qrCodeUrl: t.qr_code_url,
           isAvailable: t.is_available,
           status: (isOccupied ? "Occupied" : "Empty") as TableStatus["status"],
+          totalAmount,
+          occupiedSince,
         };
       });
 

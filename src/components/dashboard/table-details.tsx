@@ -131,6 +131,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       });
       if (success) {
         toast({ title: "Order Placed Successfully" });
+        router.push(`/${slug}/dashboard`);
       }
     } catch (e) {
       console.error(e);

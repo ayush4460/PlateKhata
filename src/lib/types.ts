@@ -129,6 +129,8 @@ export interface TableStatus {
   qrCodeUrl: string;
   isAvailable: boolean;
   status: 'Empty' | 'Occupied';
+  totalAmount?: number;
+  occupiedSince?: number;
 }
 
 export interface PaymentStats {
