@@ -123,63 +123,69 @@ function LoginForm({ role, onBack }: LoginFormProps) {
 
   return (
     <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Button
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          onBack(e);
-        }}
+      <div
         className={cn(
-          "mb-6 pl-0 hover:bg-transparent flex items-center gap-2 transition-colors relative z-50",
-          isDark
-            ? "text-white hover:text-primary"
-            : "text-white hover:text-orange-600"
+          "flex w-full mb-6",
+          role === "admin" ? "justify-end" : "justify-start"
         )}
       >
-        <ArrowLeft className="h-4 w-4" /> Back to Role Selection
-      </Button>
+        <Button
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            onBack(e);
+          }}
+          className={cn(
+            "flex items-center gap-2 transition-all duration-300 font-bold tracking-wide relative z-50 rounded-full px-4 py-2 border",
+            // Both roles now use black text initially for visibility against light page content
+            // Admin: Hover -> Black Bg, White Text
+            // Kitchen: Hover -> Orange/Neutral Bg
+            role === "admin"
+              ? "text-black border-black/10 bg-white hover:bg-black hover:text-white shadow-lg shadow-black/50"
+              : "text-black border-black/10 bg-white hover:bg-black hover:text-white shadow-lg shadow-black/50"
+          )}
+        >
+          {role === "kitchen" && <ArrowLeft className="h-4 w-4 mr-1" />}
+          Back to Role Selection
+          {role === "admin" && <ArrowRight className="h-4 w-4 ml-1" />}
+        </Button>
+      </div>
 
       <Card
         className={cn(
-          "border-0 shadow-2xl",
-          isDark
-            ? "bg-neutral-900/50 backdrop-blur-md text-white ring-1 ring-white/10"
-            : "bg-white/90 backdrop-blur-md text-neutral-900 ring-1 ring-black/5"
+          "border-0 shadow-2xl overflow-hidden backdrop-blur-xl transition-all duration-500 hover:shadow-3xl",
+          "bg-white/90 text-neutral-900 ring-1 ring-black/5" // Unified Light Theme
         )}
       >
-        <CardHeader className="space-y-1 text-center pb-8">
-          <div className="flex justify-center mb-4">
+        <CardHeader className="space-y-1 text-center pb-8 pt-10">
+          <div className="flex justify-center mb-6">
             <div
               className={cn(
-                "p-3 rounded-full",
-                isDark
-                  ? "bg-primary/20 text-primary"
-                  : "bg-orange-100 text-orange-600"
+                "p-4 rounded-full transition-transform duration-500 hover:rotate-12 hover:scale-110",
+                "bg-orange-100 text-orange-600 ring-2 ring-orange-200 shadow-[0_0_20px_rgba(234,88,12,0.15)]" // Unified Icon Style
               )}
             >
               {role === "admin" ? (
-                <UtensilsCrossed className="h-8 w-8" />
+                <UtensilsCrossed className="h-10 w-10" />
               ) : (
-                <ChefHat className="h-8 w-8" />
+                <ChefHat className="h-10 w-10" />
               )}
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">
+          <CardTitle className="text-3xl font-extrabold tracking-tight">
             {role === "admin" ? "Admin Portal" : "Kitchen Station"}
           </CardTitle>
-          <CardDescription
-            className={cn(isDark ? "text-neutral-400" : "text-neutral-500")}
-          >
+          <CardDescription className="text-base font-medium text-neutral-500">
             Enter your credentials to access the{" "}
             {role === "admin" ? "dashboard" : "kitchen panel"}.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2 group">
               <Label
                 htmlFor="email"
-                className={isDark ? "text-neutral-300" : "text-neutral-700"}
+                className="block text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
               >
                 Email
               </Label>
@@ -195,17 +201,16 @@ function LoginForm({ role, onBack }: LoginFormProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={cn(
-                  "border-0 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all",
-                  isDark
-                    ? "bg-black/50 text-white placeholder:text-neutral-600"
-                    : "bg-neutral-100 text-neutral-900 placeholder:text-neutral-400"
+                  "h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50",
+                  "hover:border-primary/50 hover:shadow-md",
+                  "bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white" // Unified Input Style
                 )}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 group">
               <Label
                 htmlFor="password"
-                className={isDark ? "text-neutral-300" : "text-neutral-700"}
+                className="block text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
               >
                 Password
               </Label>
@@ -217,22 +222,22 @@ function LoginForm({ role, onBack }: LoginFormProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={cn(
-                  "border-0 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all",
-                  isDark
-                    ? "bg-black/50 text-white placeholder:text-neutral-600"
-                    : "bg-neutral-100 text-neutral-900 placeholder:text-neutral-400"
+                  "h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50",
+                  "hover:border-primary/50 hover:shadow-md",
+                  "bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white" // Unified Input Style
                 )}
               />
             </div>
             <Button
               className={cn(
-                "w-full h-11 text-base font-semibold mt-4 transition-transform active:scale-[0.98]",
-                "bg-primary hover:bg-primary/90 text-primary-foreground"
+                "w-full h-12 text-lg font-bold mt-6 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg",
+                "bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white border-0"
               )}
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Logging in..." : "Login"}
+              {isSubmitting ? "Logging in..." : "Login"}{" "}
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </form>
         </CardContent>
@@ -295,7 +300,7 @@ export default function LoginPage() {
                 className={cn(
                   "text-center space-y-6 transition-all duration-500",
                   activePanel === "kitchen"
-                    ? "opacity-0 lg:opacity-100 lg:rotate-90 lg:whitespace-nowrap transform origin-center"
+                    ? "opacity-0 lg:opacity-100 lg:rotate-90 lg:whitespace-nowrap transform origin-center lg:-translate-x-6"
                     : "opacity-100"
                 )}
               >
@@ -369,7 +374,7 @@ export default function LoginPage() {
                 className={cn(
                   "text-center space-y-6 transition-all duration-500",
                   activePanel === "admin"
-                    ? "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap transform origin-center"
+                    ? "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap transform origin-center lg:translate-x-6"
                     : "opacity-100"
                 )}
               >
