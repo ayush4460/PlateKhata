@@ -397,7 +397,7 @@ export function RecentOrders() {
         startY: yPos,
         theme: "plain",
         styles: { fontSize: 8, cellPadding: 1, overflow: "linebreak" },
-        headStyles: { fontStyle: "bold", borderBottomWidth: 0.5, lineColor: 0 },
+        headStyles: { fontStyle: "bold", lineWidth: 0.5, lineColor: 0 },
         columnStyles: {
           0: { cellWidth: 25 },
           1: { cellWidth: 10, halign: "center" },
@@ -406,7 +406,9 @@ export function RecentOrders() {
         },
         margin: { left: margin, right: margin },
         didDrawPage: (data) => {
-          yPos = data.cursor.y;
+          if (data.cursor) {
+            yPos = data.cursor.y;
+          }
         },
       });
 
