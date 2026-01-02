@@ -213,7 +213,7 @@ export default function MenuEditorPage() {
       toast({
         variant: "destructive",
         title: "Invalid UPI ID",
-        description: "Use a valid format like axios@bank or 2523553@bank.",
+        description: "Use a valid format like platekhata@bank or 2523553@bank.",
       });
       return;
     }
@@ -756,7 +756,7 @@ export default function MenuEditorPage() {
                 type="text"
                 value={localUpiId}
                 onChange={(e) => setLocalUpiId(e.target.value)}
-                placeholder="e.g. axios@paytm, 2523553@icici"
+                placeholder="e.g. platekhata@paytm, 2523553@icici"
               />
             </div>
             <Button onClick={handleSaveSettings}>Save Settings</Button>

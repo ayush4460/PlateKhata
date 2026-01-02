@@ -101,7 +101,7 @@ export default function QrGeneratorPage() {
     );
   }
 
-  const displayRestaurantName = restaurantName || "Axios";
+  const displayRestaurantName = restaurantName || "PlateKhata";
   const displayTagline = restaurantTagline || "Scan, Order, Enjoy!";
 
   return (

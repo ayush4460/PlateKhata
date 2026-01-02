@@ -142,7 +142,7 @@ export default function AdminLoginPage() {
           <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-2 mb-4">
               <UtensilsCrossed className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-headline">Axios</span>
+              <span className="text-2xl font-headline">PlateKhata</span>
             </div>
             <CardTitle>Admin Login</CardTitle>
             <CardDescription>

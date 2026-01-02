@@ -219,7 +219,7 @@ export default function OrdersPage() {
     doc.setFontSize(32);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...RECEIPT_THEME.brandText);
-    doc.text("Axios", pageWidth / 2, 25, { align: "center" });
+    doc.text("PlateKhata", pageWidth / 2, 25, { align: "center" });
 
     doc.setFontSize(11);
     doc.setFont("helvetica", "italic");
@@ -233,7 +233,7 @@ export default function OrdersPage() {
     doc.setFont("helvetica", "normal");
     doc.setTextColor(115, 115, 115);
     doc.text(
-      "Phone: +91-XXXX-XXXXXX | Email: hello@axios.com",
+      "Phone: +91-XXXX-XXXXXX | Email: hello@platekhata.com",
       pageWidth / 2,
       43,
       { align: "center" }
@@ -498,9 +498,14 @@ export default function OrdersPage() {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(115, 115, 115);
-    doc.text("Follow us: @Axios | www.Axios.com", pageWidth / 2, footerY + 25, {
-      align: "center",
-    });
+    doc.text(
+      "Follow us: @PlateKhata | www.PlateKhata.com",
+      pageWidth / 2,
+      footerY + 25,
+      {
+        align: "center",
+      }
+    );
 
     // Small print
     doc.setFontSize(7);
@@ -514,7 +519,7 @@ export default function OrdersPage() {
 
     // Save with proper filename
     const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `Axios-Invoice-Table${tableNumber}-${timestamp}.pdf`;
+    const filename = `PlateKhata-Invoice-Table${tableNumber}-${timestamp}.pdf`;
     doc.save(filename);
   };
 

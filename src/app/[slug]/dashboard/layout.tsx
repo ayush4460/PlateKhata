@@ -204,7 +204,9 @@ function DashboardInner({
           <div className="flex items-center gap-2 font-semibold text-lg p-2">
             <UtensilsCrossed className="h-6 w-6 text-primary" />
             {open && (
-              <span className="font-headline">{restaurantName || "Axios"}</span>
+              <span className="font-headline">
+                {restaurantName || "PlateKhata"}
+              </span>
             )}
           </div>
         </SidebarHeader>
