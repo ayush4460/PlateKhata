@@ -107,7 +107,7 @@ export function TableStatus() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute -top-3 -right-3 h-8 w-8 hover:bg-black/20 text-white rounded-full z-10"
+                        className="absolute -top-3 -right-1.5 h-8 w-8 bg-yellow-400/30 hover:text-black text-black rounded-full z-10"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSourceTable(table);
@@ -118,11 +118,11 @@ export function TableStatus() {
                       </Button>
                     )}
                     <Armchair className="w-6 h-6 opacity-80" />
-                    <p className="font-bold text-xl">#{table.tableNumber}</p>
+                    <p className="font-bold text-xl">{table.tableNumber}</p>
                     {table.status === "Occupied" && table.totalAmount ? (
                       <Badge
                         variant="outline"
-                        className="bg-black/70 border-0 text-[12px] h-7 mt-2 font-bold"
+                        className="bg-yellow-500/70 border-0 text-[12px] h-7 mt-2 font-bold"
                       >
                         {new Intl.NumberFormat("en-IN", {
                           style: "currency",
@@ -152,7 +152,7 @@ export function TableStatus() {
       <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Move Table #{sourceTable?.tableNumber}</DialogTitle>
+            <DialogTitle>Move Table {sourceTable?.tableNumber}</DialogTitle>
             <DialogDescription>
               Select an available table to move current orders to.
             </DialogDescription>
@@ -177,7 +177,7 @@ export function TableStatus() {
                         await moveTable(sourceTable.id, target.id);
                         toast({
                           title: "Table moved successfully",
-                          description: `Moved #${sourceTable.tableNumber} -> #${target.tableNumber}`,
+                          description: `Moved Table ${sourceTable.tableNumber} -> Table ${target.tableNumber}`,
                         });
                         setIsMoveModalOpen(false);
                       } catch (err: any) {
@@ -192,7 +192,7 @@ export function TableStatus() {
                     }}
                   >
                     <Armchair className="w-5 h-5 mb-1" />
-                    <span className="font-bold">#{target.tableNumber}</span>
+                    <span className="font-bold">{target.tableNumber}</span>
                   </Button>
                 ))}
             </div>

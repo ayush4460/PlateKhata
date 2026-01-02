@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { UtensilsCrossed, ChefHat, ArrowRight, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useCart } from "@/hooks/use-cart";
 import { cn } from "@/lib/utils";
 
 // --- Reusable Login Form Component ---
@@ -29,6 +30,7 @@ function LoginForm({ role, onBack }: LoginFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { adminLogin } = useAuth();
+  const { refreshTables } = useCart();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -96,6 +98,9 @@ function LoginForm({ role, onBack }: LoginFormProps) {
         if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
         localStorage.setItem("adminUser", JSON.stringify(user));
       }
+
+      // Explicitly refresh tables/orders so the dashboard has fresh data immediately
+      await refreshTables();
 
       toast({
         title: "Login successful",
