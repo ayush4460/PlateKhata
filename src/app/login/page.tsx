@@ -268,7 +268,7 @@ export default function LoginPage() {
           </span>
           <span className="w-px h-3 bg-neutral-900/10 mx-1" />
           <span className="text-[10px] font-semibold text-neutral-500 tracking-wide uppercase">
-            Restaurant POS
+            Powered by Axiom HiTech
           </span>
         </div>
       </div>
