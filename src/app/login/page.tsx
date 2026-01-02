@@ -154,10 +154,10 @@ function LoginForm({ role, onBack }: LoginFormProps) {
       <Card
         className={cn(
           "border-0 shadow-2xl overflow-hidden backdrop-blur-xl transition-all duration-500 hover:shadow-3xl",
-          "bg-white/90 text-neutral-900 ring-1 ring-black/5" // Unified Light Theme
+          "bg-white/90 text-neutral-900 ring-1 ring-black/5 " // Unified Light Theme
         )}
       >
-        <CardHeader className="space-y-1 text-center pb-8 pt-10">
+        <CardHeader className="space-y-1 text-center pb-8 pt-10 ">
           <div className="flex justify-center mb-6">
             <div
               className={cn(
@@ -253,25 +253,40 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="flex h-screen w-full bg-white overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-white overflow-hidden relative">
+      {/* --- Marketing Footer (Moved to bottom for better blending) --- */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+        <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-sm hover:shadow-md ring-1 ring-black/5 group cursor-pointer transition-all duration-300 hover:scale-105 hover:bg-white/80">
+          <div className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
+          <span className="font-bold tracking-tight text-neutral-800 text-sm">
+            PlateKhata
+          </span>
+          <span className="w-px h-3 bg-neutral-900/10 mx-1" />
+          <span className="text-[10px] font-semibold text-neutral-500 tracking-wide uppercase">
+            Restaurant POS
+          </span>
+        </div>
+      </div>
+
       {/* Container */}
       <div className="flex w-full h-full flex-col lg:flex-row transition-all duration-700 ease-in-out">
         {/* === ADMIN PANEL (LEFT) === */}
         <div
           onClick={() => setActivePanel("admin")}
           className={cn(
-            "relative flex flex-col items-center justify-center p-8 transition-[width,flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group overflow-hidden border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10",
+            "relative flex flex-col items-center justify-center transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10",
+            // Padding scaling
+            "p-4 md:p-8 lg:p-12",
+            // Scroll handling for active panel
             activePanel === "admin"
-              ? "flex-grow-[10] cursor-default lg:w-3/4"
-              : activePanel === "kitchen"
-              ? "flex-grow-[1] lg:w-1/12 opacity-80 hover:opacity-90"
-              : "flex-grow lg:w-1/2 hover:flex-grow-[1.2]",
-            // Mobile sizing
+              ? "overflow-y-auto overflow-x-hidden"
+              : "overflow-hidden",
+            // Flex Sizing (Mobile Vertical / Desktop Horizontal)
             activePanel === "admin"
-              ? "h-3/4 lg:h-auto"
+              ? "flex-[10] cursor-default lg:flex-[3]" // Active: Takes most space
               : activePanel === "kitchen"
-              ? "h-1/12 lg:h-auto"
-              : "h-1/2 lg:h-auto"
+              ? "flex-[1] opacity-80 hover:opacity-90" // Inactive: Small strip
+              : "flex-[1] hover:flex-[1.2]" // Neutral: Equal split
           )}
         >
           {/* Bg Image for Admin */}
@@ -281,10 +296,10 @@ export default function LoginPage() {
           {/* Content Wrapper */}
           <div
             className={cn(
-              "transition-all duration-500",
+              "transition-all duration-500 w-full",
               activePanel === "admin"
-                ? "w-full max-w-xl"
-                : "pointer-events-none"
+                ? "max-w-md mx-auto"
+                : "pointer-events-none flex flex-col items-center justify-center h-full"
             )}
           >
             {activePanel === "admin" ? (
@@ -298,29 +313,29 @@ export default function LoginPage() {
             ) : (
               <div
                 className={cn(
-                  "text-center space-y-6 transition-all duration-500",
+                  "text-center space-y-4 md:space-y-6 transition-all duration-500",
                   activePanel === "kitchen"
                     ? "opacity-0 lg:opacity-100 lg:rotate-90 lg:whitespace-nowrap transform origin-center lg:-translate-x-6"
                     : "opacity-100"
                 )}
               >
-                <div className="inline-flex p-4 rounded-full bg-neutral-100 ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-neutral-200">
-                  <UtensilsCrossed className="h-12 w-12 text-black" />
+                <div className="inline-flex p-3 md:p-4 rounded-full bg-neutral-100 ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-neutral-200">
+                  <UtensilsCrossed className="h-8 w-8 md:h-12 md:w-12 text-black" />
                 </div>
                 <div
                   className={cn(activePanel === "kitchen" && "hidden lg:block")}
                 >
-                  <h2 className="text-3xl lg:text-4xl font-bold text-black tracking-tighter transition-colors">
+                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-black tracking-tighter transition-colors">
                     Admin Panel
                   </h2>
-                  <p className="text-black/80 mt-2 font-medium tracking-wide">
+                  <p className="text-black/80 mt-2 font-medium tracking-wide text-sm md:text-base">
                     Manage Restaurant & Orders
                   </p>
                 </div>
                 {activePanel !== "kitchen" && (
                   <Button
                     variant="outline"
-                    className="mt-8 rounded-full px-8 border-black text-white bg-black hover:bg-neutral-800 hover:text-white hover:border-black transition-all font-semibold"
+                    className="mt-6 md:mt-8 rounded-full px-6 md:px-8 border-black text-white bg-black hover:bg-neutral-800 hover:text-white hover:border-black transition-all font-semibold text-sm md:text-base"
                   >
                     Login as Admin <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -334,18 +349,19 @@ export default function LoginPage() {
         <div
           onClick={() => setActivePanel("kitchen")}
           className={cn(
-            "relative flex flex-col items-center justify-center p-8 transition-[width,flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group overflow-hidden bg-orange-50/50",
+            "relative flex flex-col items-center justify-center transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group bg-orange-50/50",
+            // Padding scaling
+            "p-4 md:p-8 lg:p-12",
+            // Scroll handling for active panel
             activePanel === "kitchen"
-              ? "flex-grow-[10] cursor-default lg:w-3/4"
-              : activePanel === "admin"
-              ? "flex-grow-[1] lg:w-1/12 opacity-80 hover:opacity-90"
-              : "flex-grow lg:w-1/2 hover:flex-grow-[1.2]",
-            // Mobile sizing
+              ? "overflow-y-auto overflow-x-hidden"
+              : "overflow-hidden",
+            // Flex Sizing
             activePanel === "kitchen"
-              ? "h-3/4 lg:h-auto"
+              ? "flex-[10] cursor-default lg:flex-[3]"
               : activePanel === "admin"
-              ? "h-1/12 lg:h-auto"
-              : "h-1/2 lg:h-auto"
+              ? "flex-[1] opacity-80 hover:opacity-90"
+              : "flex-[1] hover:flex-[1.2]"
           )}
         >
           {/* Bg Image for Kitchen */}
@@ -355,10 +371,10 @@ export default function LoginPage() {
           {/* Content Wrapper */}
           <div
             className={cn(
-              "transition-all duration-500",
+              "transition-all duration-500 w-full",
               activePanel === "kitchen"
-                ? "w-full max-w-xl"
-                : "pointer-events-none"
+                ? "max-w-md mx-auto"
+                : "pointer-events-none flex flex-col items-center justify-center h-full"
             )}
           >
             {activePanel === "kitchen" ? (
@@ -372,29 +388,29 @@ export default function LoginPage() {
             ) : (
               <div
                 className={cn(
-                  "text-center space-y-6 transition-all duration-500",
+                  "text-center space-y-4 md:space-y-6 transition-all duration-500",
                   activePanel === "admin"
                     ? "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap transform origin-center lg:translate-x-6"
                     : "opacity-100"
                 )}
               >
-                <div className="inline-flex p-4 rounded-full bg-white ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-orange-200">
-                  <ChefHat className="h-12 w-12 text-black" />
+                <div className="inline-flex p-3 md:p-4 rounded-full bg-white ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-orange-200">
+                  <ChefHat className="h-8 w-8 md:h-12 md:w-12 text-black" />
                 </div>
                 <div
                   className={cn(activePanel === "admin" && "hidden lg:block")}
                 >
-                  <h2 className="text-3xl lg:text-4xl font-bold text-black tracking-tighter transition-colors">
+                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-black tracking-tighter transition-colors">
                     Kitchen Panel
                   </h2>
-                  <p className="text-black/80 mt-2 font-medium tracking-wide">
+                  <p className="text-black/80 mt-2 font-medium tracking-wide text-sm md:text-base">
                     View & Prepare Orders
                   </p>
                 </div>
                 {activePanel !== "admin" && (
                   <Button
                     variant="outline"
-                    className="mt-8 rounded-full px-8 border-black text-white bg-black hover:bg-neutral-800 hover:text-white hover:border-black transition-all font-semibold"
+                    className="mt-6 md:mt-8 rounded-full px-6 md:px-8 border-black text-white bg-black hover:bg-neutral-800 hover:text-white hover:border-black transition-all font-semibold text-sm md:text-base"
                   >
                     Login as Kitchen <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
