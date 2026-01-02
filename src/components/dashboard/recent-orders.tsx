@@ -363,7 +363,9 @@ export function RecentOrders() {
 
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text("MuchMate Restaurant", pageWidth / 2, yPos, { align: "center" });
+      doc.text("PlateKhata", pageWidth / 2, yPos, {
+        align: "center",
+      });
       yPos += 5;
 
       doc.setFontSize(8);

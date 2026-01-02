@@ -117,7 +117,7 @@ export default function AdminLoginPage() {
       });
 
       // 2. NOW redirect. The useAuth hook is updated, so the layout won't redirect back.
-      const targetSlug = user.restaurantSlug || "muchmate-central"; // Fallback if missing
+      const targetSlug = user.restaurantSlug || "platekhata"; // Fallback if missing
       if (isKitchen) {
         router.replace(`/${targetSlug}/kitchen`);
       } else {
