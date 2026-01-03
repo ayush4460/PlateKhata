@@ -128,8 +128,9 @@ export interface TableStatus {
   capacity: number;
   qrCodeUrl: string;
   isAvailable: boolean;
-  status: 'Empty' | 'Occupied';
+  status: 'Empty' | 'Occupied' | 'Paid & Occupied';
   totalAmount?: number;
+  unpaidAmount?: number;
   occupiedSince?: number;
 }
 

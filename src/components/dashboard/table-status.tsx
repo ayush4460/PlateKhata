@@ -20,14 +20,20 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Armchair, MoveHorizontal } from "lucide-react";
+import { Armchair, MoveHorizontal, CheckCheck } from "lucide-react";
 import type { TableStatus as TableStatusType } from "@/lib/types";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 export function TableStatus() {
-  const { tableStatuses, isTablesLoading, moveTable } = useCart();
+  const {
+    tableStatuses,
+    isTablesLoading,
+    moveTable,
+    settleTable,
+    clearTableSession,
+  } = useCart();
   const router = useRouter();
   const params = useParams();
   const slug = params?.slug as string;
@@ -36,6 +42,7 @@ export function TableStatus() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [sourceTable, setSourceTable] = useState<TableStatusType | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [flippedTableId, setFlippedTableId] = useState<number | null>(null);
 
   useEffect(() => {
     console.log("[DEBUG] TableStatus received:", tableStatuses);
@@ -47,6 +54,9 @@ export function TableStatus() {
         return "bg-status-empty-bg border-border text-status-empty-text hover:opacity-90";
       case "Occupied":
         return "bg-status-occupied-bg border-border text-status-occupied-text hover:opacity-90";
+      case "Paid & Occupied":
+        // Blue scheme for Paid & Occupied
+        return "bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200 dark:bg-blue-900/40 dark:border-blue-700 dark:text-blue-100";
       default:
         return "bg-muted border-border hover:bg-muted/80";
     }
@@ -77,6 +87,10 @@ export function TableStatus() {
             <div className="w-3 h-3 rounded-full bg-yellow-500 ring-2 ring-yellow-500/20" />
             <span className="text-muted-foreground">Occupied</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-500/20" />
+            <span className="text-muted-foreground">Paid & Occupied</span>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -93,51 +107,200 @@ export function TableStatus() {
                 if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
                 return a.tableNumber.localeCompare(b.tableNumber);
               })
-              .map((table) => (
-                <Card
-                  key={table.id}
-                  className={cn(
-                    "flex flex-col items-center justify-between p-3 aspect-square transition-all border-2 shadow-sm cursor-pointer",
-                    getStatusStyles(table.status)
-                  )}
-                  onClick={() => handleTableClick(table.tableNumber)}
-                >
-                  <div className="flex flex-col items-center gap-1 mt-2 relative w-full">
-                    {table.status === "Occupied" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute -top-3 -right-1.5 h-8 w-8 bg-yellow-400/30 hover:text-black text-black rounded-full z-10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSourceTable(table);
-                          setIsMoveModalOpen(true);
-                        }}
+              .map((table) => {
+                const isPaidOccupied = table.status === "Paid & Occupied";
+                const isOccupied = table.status === "Occupied";
+                const amountToShow =
+                  isOccupied && table.unpaidAmount && table.unpaidAmount > 0
+                    ? table.unpaidAmount
+                    : table.totalAmount;
+
+                const isFlipped = flippedTableId === table.id;
+
+                return (
+                  <div
+                    key={table.id}
+                    className="relative w-full aspect-square perspective-1000 group cursor-pointer"
+                    onClick={() =>
+                      !isFlipped && handleTableClick(table.tableNumber)
+                    }
+                  >
+                    <div
+                      className={cn(
+                        "relative w-full h-full transition-all duration-500 transform-style-3d",
+                        isFlipped ? "rotate-y-180" : ""
+                      )}
+                    >
+                      {/* FRONT SIDE */}
+                      <Card
+                        className={cn(
+                          "absolute w-full h-full backface-hidden flex flex-col items-center justify-between p-3 border-2 shadow-sm",
+                          getStatusStyles(table.status)
+                        )}
                       >
-                        <MoveHorizontal className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Armchair className="w-6 h-6 opacity-80" />
-                    <p className="font-bold text-xl">{table.tableNumber}</p>
-                    {table.status === "Occupied" && table.totalAmount ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-yellow-500/70 border-0 text-[12px] h-7 mt-2 font-bold"
+                        <div className="flex flex-col items-center gap-1 mt-2 relative w-full h-full justify-center">
+                          {/* Move Icon */}
+                          {(isOccupied || isPaidOccupied) && (
+                            <div className="absolute -top-3 -right-1.5 z-10">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 bg-black/10 hover:bg-black/20 text-current rounded-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSourceTable(table);
+                                  setIsMoveModalOpen(true);
+                                }}
+                              >
+                                <MoveHorizontal className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Payment Flip Icon */}
+                          {isOccupied &&
+                            table.unpaidAmount &&
+                            table.unpaidAmount > 0 && (
+                              <div className="absolute -top-3 -left-1.5 z-10">
+                                <Button
+                                  variant="secondary"
+                                  size="icon"
+                                  className="h-8 w-8 bg-black/10 hover:bg-black/20 text-current rounded-full"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFlippedTableId(table.id);
+                                  }}
+                                >
+                                  <span className="text-xs font-bold">Pay</span>
+                                </Button>
+                              </div>
+                            )}
+
+                          {/* Finish/Clear Icon (for Paid & Occupied) */}
+                          {isPaidOccupied && (
+                            <div className="absolute -top-3 -left-1.5 z-10">
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="h-8 w-8 bg-green-600/20 hover:bg-green-600/40 text-green-700 dark:text-green-300 rounded-full border border-green-600/30"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (
+                                    confirm(
+                                      `Clear Table ${table.tableNumber} and finish session?`
+                                    )
+                                  ) {
+                                    await clearTableSession(table.id);
+                                    toast({
+                                      title: "Table Cleared",
+                                      description:
+                                        "Session finished and table is now available.",
+                                    });
+                                  }
+                                }}
+                              >
+                                <CheckCheck className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
+
+                          <Armchair className="w-6 h-6 opacity-80" />
+                          <p className="font-bold text-xl">
+                            {table.tableNumber}
+                          </p>
+
+                          {(isOccupied || isPaidOccupied) && amountToShow ? (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "border-0 text-[10px] h-6 mt-1 font-bold px-1",
+                                isPaidOccupied
+                                  ? "bg-blue-600/20 text-blue-900 dark:text-blue-100"
+                                  : "bg-yellow-500/70"
+                              )}
+                            >
+                              {isOccupied &&
+                              table.unpaidAmount &&
+                              table.unpaidAmount > 0
+                                ? "Due: "
+                                : ""}
+                              {new Intl.NumberFormat("en-IN", {
+                                style: "currency",
+                                currency: "INR",
+                              }).format(amountToShow)}
+                            </Badge>
+                          ) : (
+                            <div className="h-6 mt-1" />
+                          )}
+                          {(isOccupied || isPaidOccupied) &&
+                            table.occupiedSince && (
+                              <TableTimer startTime={table.occupiedSince} />
+                            )}
+                        </div>
+                      </Card>
+
+                      {/* BACK SIDE (Payment) */}
+                      <Card
+                        className={cn(
+                          "absolute w-full h-full backface-hidden rotate-y-180 bg-white dark:bg-zinc-900 border-2 border-primary flex flex-col items-center justify-center p-2 shadow-lg"
+                        )}
                       >
-                        {new Intl.NumberFormat("en-IN", {
-                          style: "currency",
-                          currency: "INR",
-                        }).format(table.totalAmount)}
-                      </Badge>
-                    ) : (
-                      <div className="h-7 mt-2" /> // Maintain layout spacing
-                    )}
-                    {table.status === "Occupied" && table.occupiedSince && (
-                      <TableTimer startTime={table.occupiedSince} />
-                    )}
+                        <div className="flex flex-col items-center gap-2 w-full h-full">
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-xs font-bold text-muted-foreground">
+                              Settle Table {table.tableNumber}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFlippedTableId(null);
+                              }}
+                            >
+                              <span className="text-lg leading-none">
+                                &times;
+                              </span>
+                            </Button>
+                          </div>
+
+                          <div className="flex-1 flex flex-col items-center justify-center w-full gap-2">
+                            <Button
+                              className="w-full bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                settleTable(table.id, "Cash");
+                                setFlippedTableId(null);
+                              }}
+                            >
+                              Cash
+                            </Button>
+                            <Button
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                settleTable(table.id, "UPI");
+                                setFlippedTableId(null);
+                              }}
+                            >
+                              UPI
+                            </Button>
+                          </div>
+
+                          <div className="text-[10px] font-bold text-center">
+                            Total:{" "}
+                            {new Intl.NumberFormat("en-IN", {
+                              style: "currency",
+                              currency: "INR",
+                            }).format(amountToShow || 0)}
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
                   </div>
-                </Card>
-              ))}
+                );
+              })}
           </div>
         ) : (
           <div className="text-center py-10 text-muted-foreground">

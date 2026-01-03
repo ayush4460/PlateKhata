@@ -103,6 +103,7 @@ interface CartContextType {
     method: string,
     status?: string
   ) => Promise<void>;
+  settleTable: (tableId: number | string, method: string) => Promise<void>;
   cancelOrder: (orderId: string) => Promise<void>;
   taxRate: number;
   discountRate: number;
@@ -987,17 +988,32 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const derived = backendTables
-      .filter((t) => t.is_available !== false)
-      .map((t) => {
+      .filter((t: any) => t.is_available !== false)
+      .map((t: any) => {
         const idStr = String(t.table_id || t.id);
         const numStr = t.table_number || idStr;
-        // FIX: Strict match on Table ID only to prevent "Off-By-K" errors where Table Number matches another Table's ID
+        // FIX: Strict match on Table ID only to prevent "Off-By-K" errors
         const tableOrders = activeOrders.filter((o) => o.tableId === idStr);
         const isOccupied = tableOrders.length > 0;
+
+        let status: TableStatus["status"] = "Empty";
+        if (isOccupied) {
+          // Check if ALL active orders are paid
+          const allPaid = tableOrders.every(
+            (o) => o.paymentStatus === "Approved"
+          );
+          status = allPaid ? "Paid & Occupied" : "Occupied";
+        }
+
         const totalAmount = tableOrders.reduce(
           (sum, o) => sum + (o.total || 0),
           0
         );
+
+        // Calculate remaining outstanding (unpaid) amount
+        const unpaidAmount = tableOrders.reduce((sum, o) => {
+          return o.paymentStatus !== "Approved" ? sum + (o.total || 0) : sum;
+        }, 0);
 
         // Find earliest order time
         const occupiedSince =
@@ -1011,8 +1027,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           capacity: t.capacity,
           qrCodeUrl: t.qr_code_url,
           isAvailable: t.is_available,
-          status: (isOccupied ? "Occupied" : "Empty") as TableStatus["status"],
+          status, // "Empty" | "Occupied" | "Paid & Occupied"
           totalAmount,
+          activeOrdersCount: tableOrders.length, // Added helper
+          unpaidAmount, // Added helper
           occupiedSince,
         };
       });
@@ -1686,6 +1704,57 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [toast, fetchRelevantOrders]
   );
 
+  const settleTable = useCallback(
+    async (tableId: number | string, method: string) => {
+      if (!hasAuthToken()) return;
+
+      const idStr = String(tableId);
+      const unpaidOrders = activeOrders.filter(
+        (o) =>
+          o.tableId === idStr &&
+          o.paymentStatus !== "Approved" &&
+          o.status !== "Cancelled"
+      );
+
+      if (unpaidOrders.length === 0) {
+        toast({ title: "No unpaid orders to settle." });
+        return;
+      }
+
+      let successCount = 0;
+      for (const order of unpaidOrders) {
+        try {
+          const res = await fetch(`${API_BASE}/orders/${order.id}/payment`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              paymentStatus: "Approved",
+              paymentMethod: method,
+            }),
+          });
+          if (res.ok) successCount++;
+        } catch (e) {
+          console.error(`Failed to settle order ${order.id}`, e);
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Table Settled",
+          description: `Marked ${successCount} orders as Paid via ${method}`,
+        });
+        fetchRelevantOrders();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Settlement Failed",
+          description: "Could not update orders.",
+        });
+      }
+    },
+    [activeOrders, toast, fetchRelevantOrders]
+  );
+
   const cancelOrder = useCallback(
     async (orderId: string) => {
       const isAdminUser = hasAuthToken();
@@ -1853,7 +1922,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           title: "Table Cleared",
           description: "Session expired and table is free.",
         });
-        fetchTables();
+        await fetchTables();
+        await fetchActiveOrders();
       } catch (e) {
         toast({
           variant: "destructive",
@@ -1862,7 +1932,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchTables]
+    [toast, fetchTables, fetchActiveOrders]
   );
 
   const updateSessionTotal = useCallback(
@@ -2198,6 +2268,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     createTable,
     deleteTable,
     clearTableSession,
+    settleTable, // Added
     moveTable,
     refreshTables,
     analyticsPeriod,
