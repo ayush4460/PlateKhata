@@ -117,7 +117,10 @@ interface CartContextType {
     name?: string,
     address?: string,
     contactEmail?: string,
-    tagline?: string
+    tagline?: string,
+    contactNumber?: string,
+    fssaiLicNo?: string,
+    gstin?: string
   ) => Promise<void>;
   zomatoRestaurantId: string;
   swiggyRestaurantId: string;
@@ -125,6 +128,9 @@ interface CartContextType {
   restaurantAddress: string | null;
   restaurantTagline: string | null;
   contactEmail: string | null;
+  contactNumber: string | null;
+  fssaiLicNo: string | null;
+  gstin: string | null;
   setTaxRate: (rate: number) => Promise<void>;
   menuItems: MenuItem[];
   setMenuItems: (items: MenuItem[]) => void;
@@ -156,6 +162,10 @@ interface CartContextType {
   orderFilters: { startDate?: string; endDate?: string };
   setOrderFilters: (filters: { startDate?: string; endDate?: string }) => void;
   isTablesLoading: boolean;
+  fetchRelevantOrders: (
+    tokenOverride?: string,
+    tableIdOverride?: string
+  ) => Promise<void>;
 }
 
 // Create the context
@@ -299,6 +309,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     null
   );
   const [contactEmail, setContactEmail] = useState<string | null>(null);
+  const [contactNumber, setContactNumber] = useState<string | null>(null);
+  const [fssaiLicNo, setFssaiLicNo] = useState<string | null>(null);
+  const [gstin, setGstin] = useState<string | null>(null);
   const router = useRouter();
   const [menuItems, setMenuItemsState] = useState<MenuItem[]>([]);
   const [analyticsPeriod, setAnalyticsPeriodState] =
@@ -411,6 +424,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           setRestaurantTagline(payload.tagline);
         if (typeof payload.contactEmail === "string")
           setContactEmail(payload.contactEmail);
+        if (typeof payload.contactNumber === "string")
+          setContactNumber(payload.contactNumber);
+        if (typeof payload.fssaiLicNo === "string")
+          setFssaiLicNo(payload.fssaiLicNo);
+        if (typeof payload.gstin === "string") setGstin(payload.gstin);
       }
     } catch (err) {
       console.error("[DEBUG SETTINGS] Failed to fetch public settings:", err);
@@ -659,7 +677,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   //  fetchRelevantOrders
   const fetchRelevantOrders = useCallback(
-    async (tokenOverride?: string) => {
+    async (tokenOverride?: string, tableIdOverride?: string) => {
       let url = `${API_BASE}/orders`;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -690,6 +708,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           queryParams.push(`startDate=${orderFilters.startDate}`);
         if (orderFilters.endDate)
           queryParams.push(`endDate=${orderFilters.endDate}`);
+
+        // OPTIMIZATION: If a specific table is requested (e.g. from TableDetails), filter by it to ensure we get the latest
+        if (tableIdOverride) {
+          queryParams.push(`tableId=${tableIdOverride}`);
+        }
 
         url = `${API_BASE}/orders?${queryParams.join("&")}`;
         console.log("[DEBUG FETCH] Fetching orders with URL:", url); // ADDED LOG
@@ -725,7 +748,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const res = await fetch(url, { headers });
+        if (url.includes("?")) {
+          url += `&_t=${Date.now()}`;
+        } else {
+          url += `?_t=${Date.now()}`;
+        }
+
+        const res = await fetch(url, { headers, cache: "no-store" });
 
         //console.log('[DEBUG FETCH] Response status:', res.status);
 
@@ -1065,7 +1094,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       newName?: string,
       newAddress?: string,
       newEmail?: string,
-      newTagline?: string
+      newTagline?: string,
+      newContactNumber?: string,
+      newFssaiLicNo?: string,
+      newGstin?: string
     ) => {
       if (!hasAuthToken()) return;
       // Update local state
@@ -1078,6 +1110,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (newAddress !== undefined) setRestaurantAddress(newAddress);
       if (newEmail !== undefined) setContactEmail(newEmail);
       if (newTagline !== undefined) setRestaurantTagline(newTagline);
+      if (newContactNumber !== undefined) setContactNumber(newContactNumber);
+      if (newFssaiLicNo !== undefined) setFssaiLicNo(newFssaiLicNo);
+      if (newGstin !== undefined) setGstin(newGstin);
 
       writeToStorage("taxRate", newTax);
       writeToStorage("discountRate", newDiscount);
@@ -1111,6 +1146,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (newAddress !== undefined) body.address = newAddress;
         if (newEmail !== undefined) body.contactEmail = newEmail;
         if (newTagline !== undefined) body.tagline = newTagline;
+        if (newContactNumber !== undefined)
+          body.contactNumber = newContactNumber;
+        if (newFssaiLicNo !== undefined) body.fssaiLicNo = newFssaiLicNo;
+        if (newGstin !== undefined) body.gstin = newGstin;
 
         const res = await fetch(`${API_BASE}/settings`, {
           method: "PATCH",
@@ -1983,22 +2022,30 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return defaultAnalytics;
     }
 
+    // Only count Approved orders for Revenue
     const approvedOrders = pastOrders.filter(
       (o) => o.paymentStatus === "Approved"
     );
+
+    // For "New Orders" count, we should arguably count ALL orders (including pending)
+    // OR just the ones in the period.
+    // The previous logic filtered "approvedOrders" for everything.
+    // Let's stick to "approvedOrders" for Revenue, but for "New Orders" count,
+    // usually business owners want to see TOTAL sessions, including active/pending ones?
+    // However, the Card says "New Orders" inside a "Total Revenue" context usually implies conversion.
+    // But let's look at the user request: "in analytics new orders... should treat whole as 1 single order".
+    // If they are paying ("click payment"), they become Approved.
+    // So working with "approvedOrders" is likely what they are looking at in the screenshot (Revenue & New Orders).
 
     const { start: todayStart, end: todayEnd } = getISTDayRange(); // Defaults to now
 
     // Helper to convert Fake Local Date (from date-fns helpers) to Absolute IST Epoch
     const toEpoch = (fakeLocal: Date, isEnd = false) => {
-      // Format as YYYY-MM-DDTHH:mm:ss.SSS
-      // We assume fakeLocal has correct IST components in local time slots.
-      // We explicitly append +05:30 to treat it as IST.
       const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
       return new Date(iso).getTime();
     };
 
-    const nowFake = toISTDisplayDate(Date.now()); // Fake Local for date-fns math
+    const nowFake = toISTDisplayDate(Date.now());
 
     const getPeriodInterval = (period: AnalyticsPeriod) => {
       if (period === "daily") {
@@ -2022,6 +2069,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const { start, end } = getPeriodInterval(analyticsPeriod);
 
+    // Filter orders by date
     const periodOrders = approvedOrders.filter(
       (o) => o.date >= start && o.date <= end
     );
@@ -2031,13 +2079,26 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       0
     );
 
+    // DEBUG LOGGING for Analytics
+    // console.log(`[DEBUG ANALYTICS] Period: ${analyticsPeriod}, Orders found: ${periodOrders.length}`);
+
     // Count unique sessions instead of total orders
-    const uniqueSessions = new Set(
-      periodOrders.map(
-        (o) => (o as any).sessionId || (o as any).session_id || o.id
-      )
-    ).size;
-    const newOrdersCount = uniqueSessions;
+    const uniqueSessions = new Set();
+
+    periodOrders.forEach((o) => {
+      const sid = (o as any).sessionId || (o as any).session_id;
+      if (sid) {
+        uniqueSessions.add(sid);
+      } else {
+        // Fallback: If no session ID, valid orders must be counted by ID
+        // console.warn('[DEBUG ANALYTICS] Order missing session ID:', o.id);
+        uniqueSessions.add(o.id);
+      }
+    });
+
+    const newOrdersCount = uniqueSessions.size;
+
+    // console.log(`[DEBUG ANALYTICS] Unique Sessions: ${newOrdersCount}`);
 
     const avgOrderValue =
       newOrdersCount > 0 ? totalRevenue / newOrdersCount : 0;
@@ -2255,6 +2316,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     restaurantAddress,
     restaurantTagline,
     contactEmail,
+    contactNumber,
+    fssaiLicNo,
+    gstin,
     customerDetails,
     menuItems,
     setMenuItems,
@@ -2298,6 +2362,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     orderFilters,
     setOrderFilters,
     isTablesLoading,
+    fetchRelevantOrders, // Exposed
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

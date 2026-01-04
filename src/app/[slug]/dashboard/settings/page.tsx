@@ -29,6 +29,9 @@ export default function SettingsPage() {
     restaurantAddress,
     restaurantTagline,
     contactEmail,
+    contactNumber,
+    fssaiLicNo,
+    gstin,
     updateSettings,
     isCartLoading,
   } = useCart();
@@ -44,6 +47,9 @@ export default function SettingsPage() {
   const [localAddress, setLocalAddress] = useState("");
   const [localTagline, setLocalTagline] = useState("");
   const [localEmail, setLocalEmail] = useState("");
+  const [localContactNumber, setLocalContactNumber] = useState("");
+  const [localFssai, setLocalFssai] = useState("");
+  const [localGstin, setLocalGstin] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,6 +66,9 @@ export default function SettingsPage() {
       setLocalAddress(restaurantAddress || "");
       setLocalTagline(restaurantTagline || "");
       setLocalEmail(contactEmail || "");
+      setLocalContactNumber(contactNumber || "");
+      setLocalFssai(fssaiLicNo || "");
+      setLocalGstin(gstin || "");
     }
   }, [
     isCartLoading,
@@ -101,7 +110,10 @@ export default function SettingsPage() {
         localName.trim(),
         localAddress.trim(),
         localEmail.trim(),
-        localTagline.trim()
+        localTagline.trim(),
+        localContactNumber.trim(),
+        localFssai.trim(),
+        localGstin.trim()
       );
       toast({
         title: "Settings Saved",
@@ -192,6 +204,37 @@ export default function SettingsPage() {
                 value={localEmail}
                 onChange={(e) => setLocalEmail(e.target.value)}
                 placeholder="contact@restaurant.com"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contactNumber">Contact Number</Label>
+                <Input
+                  id="contactNumber"
+                  value={localContactNumber}
+                  onChange={(e) => setLocalContactNumber(e.target.value)}
+                  placeholder="e.g. +91 990 9000 317"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gstin">GSTIN</Label>
+                <Input
+                  id="gstin"
+                  value={localGstin}
+                  onChange={(e) => setLocalGstin(e.target.value)}
+                  placeholder="GST Identification Number"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fssai">FSSAI License No</Label>
+              <Input
+                id="fssai"
+                value={localFssai}
+                onChange={(e) => setLocalFssai(e.target.value)}
+                placeholder="FSSAI License Number"
               />
             </div>
           </CardContent>

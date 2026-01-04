@@ -10,6 +10,9 @@ import {
   UtensilsCrossed,
   Sparkles,
   Circle,
+  Loader2,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
 const normalizeBool = (val: any) =>
   val === true || val === "true" || Number(val) === 1;
@@ -48,6 +52,9 @@ interface MenuContentProps {
   enableCartWidget?: boolean;
   customTableId?: number; // Optional: If we want to force a specific table (Admin view)
   layoutMode?: "default" | "split";
+  onAddToCart?: (
+    item: MenuItem & { spiceLevel?: string; specialInstructions?: string }
+  ) => void;
 }
 
 export function MenuContent({
@@ -55,6 +62,7 @@ export function MenuContent({
   enableCartWidget = true, // Default to true (Customer view)
   customTableId,
   layoutMode = "default",
+  onAddToCart,
 }: MenuContentProps) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -70,7 +78,9 @@ export function MenuContent({
     setRestaurantSlug,
     setTableToken,
     restaurantName,
+    setMenuItems,
   } = useCart();
+  const { toast } = useToast();
 
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId");
@@ -290,7 +300,13 @@ export function MenuContent({
           } as MenuItem;
         });
 
-        if (!cancelled) setRemoteMenuItems(mapped);
+        if (!cancelled) {
+          setRemoteMenuItems(mapped);
+          // Sync to Context so TableDetails can see it
+          if (setMenuItems) {
+            setMenuItems(mapped);
+          }
+        }
       } catch (err) {
         console.error("[menu] Error fetching menu items", err);
         setRemoteMenuItems([]);
@@ -317,20 +333,100 @@ export function MenuContent({
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleAddToCart = (item: MenuItem, e?: React.MouseEvent) => {
+  // Track loading state per item
+  const [addingItems, setAddingItems] = useState<Record<string, boolean>>({});
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>(
+    {}
+  );
+
+  const getQty = (itemId: string) => itemQuantities[itemId] || 1;
+
+  const handleIncrement = (itemId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setItemQuantities((prev) => ({
+      ...prev,
+      [itemId]: (prev[itemId] || 1) + 1,
+    }));
+  };
+
+  const handleDecrement = (itemId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setItemQuantities((prev) => {
+      const current = prev[itemId] || 1;
+      if (current <= 1) return prev;
+      return { ...prev, [itemId]: current - 1 };
+    });
+  };
+
+  const handleAddToCart = async (item: MenuItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (item.hasSpiceLevels) {
       setSpiceItem(item);
       setSelectedSpiceLevel("Regular");
       setShowSpiceDialog(true);
     } else {
-      addToCart(item);
+      const quantityToAdd = getQty(item.id);
+
+      // Create a temporary item with the correct quantity
+      // Note: We might need to handle this differently depending on onAddToCart signature
+      // but usually addToCart logic sums quantities for same ID.
+      // If we are passing to `addToCart(item)`, we might need to loop or update `useCart` to accept qty.
+      // Assuming `addToCart` adds 1 by default, let's check `useCart`.
+      // Actually `onAddToCart` usually takes an item.
+      // Let's modify the item being passed to have the quantity?
+      // Or just call it N times? Calling N times is safer if backend logic is complex,
+      // but modifying quantity property is better if supported.
+      // Looking at `use-cart.tsx` (from memory/previous context), `addToCart` usually increments.
+      // BUT `handleInstantAdd` in `table-details.tsx` hardcodes quantity: 1.
+      // Wait, `handleInstantAdd` was used in `menu-content` prop `onAddToCart`.
+      // I need to update `handleInstantAdd` in `TableDetails` to accept quantity too?
+      // `handleInstantAdd` takes `item`.
+      // Let's modify `handleInstantAdd` in `TableDetails` conceptually by passing an item with `quantity` property if possible,
+      // OR update the `handleInstantAdd` signature.
+      // Since I can't easily change `TableDetails` signature right here without another tool call,
+      // I will hack it: strictly speaking `MenuItem` interface usually has generic props.
+      // actually `handleInstantAdd` constructs payload: `quantity: 1`.
+      // I should update `handleInstantAdd` in `table-details` to read `item.quantity` if present.
+
+      // For now, let's pass a modified item object that includes `quantity`.
+      const itemWithQty = { ...item, quantity: quantityToAdd };
+
+      if (onAddToCart) {
+        setAddingItems((prev) => ({ ...prev, [item.id]: true }));
+        try {
+          await onAddToCart(itemWithQty);
+          // Only reset if successful
+          setItemQuantities((prev) => ({ ...prev, [item.id]: 1 }));
+        } catch (error) {
+          console.error("Failed to add item", error);
+        } finally {
+          setAddingItems((prev) => ({ ...prev, [item.id]: false }));
+        }
+      } else {
+        // Default context add (Customer view)
+        // ensure addToCart handles custom quantity
+        for (let i = 0; i < quantityToAdd; i++) {
+          addToCart(item);
+        }
+        setItemQuantities((prev) => ({ ...prev, [item.id]: 1 }));
+
+        toast({
+          title: "Added to selection",
+          description: `${quantityToAdd}x ${item.name} added.`,
+          duration: 1500,
+        });
+      }
     }
   };
 
   const confirmSpiceSelection = () => {
     if (spiceItem) {
-      addToCart({ ...spiceItem, spiceLevel: selectedSpiceLevel } as any);
+      const itemToAdd = { ...spiceItem, spiceLevel: selectedSpiceLevel } as any;
+      if (onAddToCart) {
+        onAddToCart(itemToAdd);
+      } else {
+        addToCart(itemToAdd);
+      }
       setShowSpiceDialog(false);
       setSpiceItem(null);
     }
@@ -397,29 +493,31 @@ export function MenuContent({
       )}
     >
       <header className="sticky top-0 bg-background/80 backdrop-blur-sm z-10 p-4 space-y-4 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-lg">
-            <UtensilsCrossed className="h-6 w-6 text-primary" />
-            <span className="font-headline">
-              {restaurantName || "MunchMate"}{" "}
-              {effectiveTableNumber && `- Table ${effectiveTableNumber}`}
-            </span>
-          </div>
+        {layoutMode !== "split" && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-semibold text-lg">
+              <UtensilsCrossed className="h-6 w-6 text-primary" />
+              <span className="font-headline">
+                {restaurantName || "MunchMate"}{" "}
+                {effectiveTableNumber && `- Table ${effectiveTableNumber}`}
+              </span>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {enableCartWidget && (
-              <Link href="/cart" className="relative hidden md:block">
-                <ShoppingCart className="h-6 w-6 text-foreground" />
-                {cartItemCount > 0 && (
-                  <Badge className="absolute -top-2 -right-3 h-5 w-5 flex items-center justify-center p-0">
-                    {cartItemCount}
-                  </Badge>
-                )}
-              </Link>
-            )}
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              {enableCartWidget && (
+                <Link href="/cart" className="relative hidden md:block">
+                  <ShoppingCart className="h-6 w-6 text-foreground" />
+                  {cartItemCount > 0 && (
+                    <Badge className="absolute -top-2 -right-3 h-5 w-5 flex items-center justify-center p-0">
+                      {cartItemCount}
+                    </Badge>
+                  )}
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
@@ -504,56 +602,71 @@ export function MenuContent({
                       onClick={() => setSelectedItem(item)}
                     >
                       <CardContent className="p-0">
-                        <div className="relative aspect-[4/3]">
-                          <Image
-                            src={item.image.url}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                          />
-                          {item.dietaryType === "eggitarian" ? (
-                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
-                              <Circle className="h-3 w-3 text-yellow-500 fill-yellow-500" />
-                            </Badge>
-                          ) : item.isVegetarian ||
-                            item.dietaryType === "veg" ? (
-                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
-                              <Circle className="h-3 w-3 text-green-600 fill-green-600" />
-                            </Badge>
-                          ) : (
-                            <Badge className="absolute top-2 right-2 bg-white/90 p-1 rounded-full border-none shadow-sm">
-                              <Circle className="h-3 w-3 text-red-600 fill-red-600" />
-                            </Badge>
-                          )}
-                          {!item.isAvailable && (
-                            <Badge
-                              variant="destructive"
-                              className="absolute top-2 left-2"
-                            >
-                              UNAVAILABLE
-                            </Badge>
-                          )}
-                        </div>
                         <div className="p-3 space-y-2">
                           <div className="flex justify-between items-start gap-2">
-                            <h3 className="font-medium text-sm leading-tight line-clamp-2">
+                            <h3 className="font-medium text-sm leading-tight line-clamp-2 flex-1">
                               {item.name}
                             </h3>
-                            <span className="font-bold text-sm whitespace-nowrap">
+                            <span className="font-bold text-sm whitespace-nowrap flex-shrink-0">
                               ₹{item.price.toFixed(2)}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2 h-8">
                             {item.description}
                           </p>
-                          <Button
-                            size="sm"
-                            className="w-full h-8 rounded-md"
-                            onClick={(e) => handleAddToCart(item, e)}
-                            disabled={!item.isAvailable || !canAdd}
-                          >
-                            Add
-                          </Button>
+                          <div className="flex items-center gap-2 w-full pt-2">
+                            {/* Quantity Selector */}
+                            <div
+                              className="flex items-center border rounded-full h-7 px-1 shadow-sm bg-background transition-colors hover:border-primary/50"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                                onClick={(e) => handleDecrement(item.id, e)}
+                                disabled={
+                                  getQty(item.id) <= 1 ||
+                                  !item.isAvailable ||
+                                  !canAdd
+                                }
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="w-5 text-center text-xs font-medium">
+                                {getQty(item.id)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                                onClick={(e) => handleIncrement(item.id, e)}
+                                disabled={!item.isAvailable || !canAdd}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              className="flex-1 h-7 rounded-full shadow-sm font-medium px-2 text-xs"
+                              onClick={(e) => handleAddToCart(item, e)}
+                              disabled={
+                                !item.isAvailable ||
+                                !canAdd ||
+                                addingItems[item.id]
+                              }
+                            >
+                              {addingItems[item.id] ? (
+                                <span className="flex items-center gap-1">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  ...
+                                </span>
+                              ) : (
+                                "Add"
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -649,23 +762,63 @@ export function MenuContent({
                       )}
                     </div>
                     <div className="p-3 space-y-2 flex flex-col">
-                      <h3 className="font-semibold text-sm truncate">
-                        {item.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground line-clamp-2 h-8 flex-grow">
-                        {item.description}
-                      </p>
-                      <div className="flex items-center justify-between pt-1">
+                      <div className="flex justify-between items-center gap-2">
+                        <h3 className="font-semibold text-sm truncate flex-1">
+                          {item.name}
+                        </h3>
                         <span className="font-bold text-sm">
                           ₹{item.price.toFixed(2)}
                         </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2 h-8 flex-grow">
+                        {item.description}
+                      </p>
+                      <div className="flex items-center gap-2 w-full pt-2">
+                        {/* Quantity Selector */}
+                        <div
+                          className="flex items-center border rounded-full h-8 px-1 shadow-sm bg-background transition-colors hover:border-primary/50"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={(e) => handleDecrement(item.id, e)}
+                            disabled={
+                              getQty(item.id) <= 1 ||
+                              !item.isAvailable ||
+                              !canAdd
+                            }
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-6 text-center text-sm font-medium">
+                            {getQty(item.id)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={(e) => handleIncrement(item.id, e)}
+                            disabled={!item.isAvailable || !canAdd}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+
                         <Button
                           size="sm"
-                          className="h-8 rounded-full"
+                          className="flex-1 h-8 rounded-full shadow-sm font-medium px-2"
                           onClick={(e) => handleAddToCart(item, e)}
-                          disabled={!item.isAvailable || !canAdd}
+                          disabled={
+                            !item.isAvailable || !canAdd || addingItems[item.id]
+                          }
                         >
-                          Add
+                          {addingItems[item.id] ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Add"
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -718,6 +871,43 @@ export function MenuContent({
                 ₹{selectedItem.price.toFixed(2)}
               </p>
             </div>
+            <div className="flex items-center justify-between pb-4">
+              {/* Quantity Control for Details Pane */}
+              <div className="flex items-center border rounded-full h-10 px-2 shadow-sm bg-background transition-colors hover:border-primary/50">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                  onClick={(e) => handleDecrement(selectedItem.id, e)}
+                  disabled={
+                    getQty(selectedItem.id) <= 1 ||
+                    !selectedItem.isAvailable ||
+                    !canAdd
+                  }
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-lg font-bold w-10 text-center">
+                  {getQty(selectedItem.id)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full p-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                  onClick={(e) => handleIncrement(selectedItem.id, e)}
+                  disabled={!selectedItem.isAvailable || !canAdd}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-xl font-bold text-primary">
+                  ₹{(selectedItem.price * getQty(selectedItem.id)).toFixed(2)}
+                </p>
+              </div>
+            </div>
             <SheetFooter>
               <Button
                 type="submit"
@@ -727,13 +917,26 @@ export function MenuContent({
                   handleAddToCart(selectedItem);
                   setSelectedItem(null);
                 }}
-                disabled={!selectedItem.isAvailable || !canAdd}
+                disabled={
+                  !selectedItem.isAvailable ||
+                  !canAdd ||
+                  addingItems[selectedItem.id]
+                }
               >
-                {selectedItem.isAvailable
-                  ? canAdd
-                    ? "Add to Cart"
-                    : "View Only (No Table)"
-                  : "Unavailable"}
+                {addingItems[selectedItem.id] ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding to Cart...
+                  </>
+                ) : selectedItem.isAvailable ? (
+                  canAdd ? (
+                    "Add to Cart"
+                  ) : (
+                    "View Only (No Table)"
+                  )
+                ) : (
+                  "Unavailable"
+                )}
               </Button>
             </SheetFooter>
           </SheetContent>

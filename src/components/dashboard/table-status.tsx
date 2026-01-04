@@ -204,6 +204,18 @@ export function TableStatus() {
                             </div>
                           )}
 
+                          {/* Customer Name Display */}
+                          {(isOccupied || isPaidOccupied) && (
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-0 w-full px-8 text-center">
+                              <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 truncate block">
+                                {typeof window !== "undefined" &&
+                                  localStorage.getItem(
+                                    `customer_name_${table.id}`
+                                  )}
+                              </span>
+                            </div>
+                          )}
+
                           <Armchair className="w-6 h-6 opacity-80" />
                           <p className="font-bold text-xl">
                             {table.tableNumber}

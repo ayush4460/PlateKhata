@@ -27,6 +27,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/use-cart";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Trash2,
   ChevronRight,
@@ -38,8 +39,7 @@ import {
   Download,
   Printer,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateBillPDF } from "@/lib/bill-generator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -263,6 +263,7 @@ function SessionDetails({
 
 export function RecentOrders() {
   const { toast } = useToast();
+  const { adminUser } = useAuth();
   const {
     pastOrders,
     approvePayment,
@@ -270,6 +271,12 @@ export function RecentOrders() {
     cancelOrder,
     updateSessionTotal,
     setOrderFilters,
+    restaurantName,
+    restaurantAddress,
+    contactNumber,
+    fssaiLicNo,
+    gstin,
+    restaurantTagline,
   } = useCart();
   const [orderToDelete, setOrderToDelete] = useState<PastOrder | null>(null);
   const [expandedSessions, setExpandedSessions] = useState<
@@ -351,99 +358,47 @@ export function RecentOrders() {
         }))
       );
 
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [80, 2000],
-      });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 5;
-      let yPos = 10;
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text("PlateKhata", pageWidth / 2, yPos, {
-        align: "center",
-      });
-      yPos += 5;
-
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text("Original Recipe of Taste", pageWidth / 2, yPos, {
-        align: "center",
-      });
-      yPos += 7;
-
-      doc.text(`Date: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, margin, yPos);
-      yPos += 4;
-      doc.text(`Table: ${group.tableNumber}`, margin, yPos);
-      doc.text(`Bill No: ${group.key.slice(0, 8)}`, pageWidth - margin, yPos, {
-        align: "right",
-      });
-      yPos += 6;
-
-      const tableHeaders = [["Item", "Qty", "Price", "Amt"]];
-      const tableBody = allItems.map((item: any) => [
-        item.name.substring(0, 15) + (item.name.length > 15 ? "..." : ""),
-        item.quantity.toString(),
-        item.price.toFixed(2),
-        (item.price * item.quantity).toFixed(2),
-      ]);
-
-      autoTable(doc, {
-        head: tableHeaders,
-        body: tableBody,
-        startY: yPos,
-        theme: "plain",
-        styles: { fontSize: 8, cellPadding: 1, overflow: "linebreak" },
-        headStyles: { fontStyle: "bold", lineWidth: 0.5, lineColor: 0 },
-        columnStyles: {
-          0: { cellWidth: 25 },
-          1: { cellWidth: 10, halign: "center" },
-          2: { cellWidth: 15, halign: "right" },
-          3: { cellWidth: 15, halign: "right" },
-        },
-        margin: { left: margin, right: margin },
-        didDrawPage: (data) => {
-          if (data.cursor) {
-            yPos = data.cursor.y;
-          }
-        },
-      });
-
-      yPos = (doc as any).lastAutoTable.finalY + 5;
-
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-
-      const addLine = (label: string, value: string) => {
-        doc.text(label, pageWidth - margin - 35, yPos);
-        doc.text(value, pageWidth - margin, yPos, { align: "right" });
-        yPos += 4;
+      const sessionOrder = {
+        id: group.key,
+        orderNumber: group.orders[0]?.orderNumber || "BN-0000",
+        userName: group.userName || "Guest",
+        userPhone: group.userPhone || "",
+        tableNumber: group.tableNumber,
+        tableId: group.key,
+        date: group.orders[0]?.date || Date.now(),
+        status: group.status,
+        paymentStatus: group.paymentStatus,
+        paymentMethod: group.paymentMethod || "Cash",
+        total: group.total,
+        subtotal: group.subtotal,
+        tax: group.tax,
+        discount: group.discount,
+        orderType: "regular",
+        items: allItems.map((i: any) => ({
+          id: i.id,
+          name: i.name,
+          quantity: i.quantity,
+          price: i.price,
+          category: i.category || "",
+        })),
       };
 
-      addLine("Subtotal:", group.subtotal.toFixed(2));
-      addLine("Tax:", group.tax.toFixed(2));
-      if (group.discount > 0) {
-        addLine("Discount:", `-${group.discount.toFixed(2)}`);
-      }
+      const profile = {
+        name: restaurantName,
+        address: restaurantAddress,
+        contactNumber: contactNumber,
+        gstin: gstin,
+        fssaiLicNo: fssaiLicNo,
+        tagline: restaurantTagline,
+        cashierName: adminUser?.username || adminUser?.fullName || "Admin",
+      };
 
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-      yPos += 5;
+      generateBillPDF(sessionOrder as any, profile);
 
-      doc.setFontSize(10);
-      addLine("TOTAL:", `Rs ${group.total.toFixed(2)}`);
-
-      yPos += 2;
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Mode: ${group.paymentMethod || "Pending"}`, margin, yPos);
-
-      yPos += 10;
-      doc.text("*** Thank You ***", pageWidth / 2, yPos, { align: "center" });
-
-      doc.save(`Bill_${group.tableNumber}_${group.key.slice(0, 6)}.pdf`);
+      toast({
+        title: "Bill Generated",
+        description: "PDF bill has been downloaded.",
+      });
     } catch (e) {
       console.error("Download failed", e);
       toast({
