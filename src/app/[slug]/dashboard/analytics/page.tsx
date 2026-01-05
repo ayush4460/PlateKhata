@@ -5,7 +5,7 @@ import { SalesChart } from "@/components/dashboard/sales-chart";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { PaymentPieChart } from "@/components/dashboard/payment-pie-chart";
 import { TopSellingItems } from "@/components/dashboard/top-selling-items";
-import { RevenueCalendarChart } from "@/components/dashboard/revenue-calendar-chart";
+
 import { useCart } from "@/hooks/use-cart";
 
 export default function AnalyticsPage() {
@@ -27,13 +27,6 @@ export default function AnalyticsPage() {
       <StatsCards />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {advancedAnalytics && (
-          <RevenueCalendarChart
-            data={advancedAnalytics.revenueSeries}
-            dateRange={advancedDateRange}
-            onRangeChange={setAdvancedDateRange}
-          />
-        )}
         <div className="col-span-3">
           <PaymentPieChart data={paymentStats} />
         </div>
