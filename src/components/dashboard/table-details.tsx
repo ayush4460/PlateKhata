@@ -19,6 +19,7 @@ import {
   Printer,
   RotateCcw,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { generateBillPDF } from "@/lib/bill-generator";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import Image from "next/image";
-import { MenuItem } from "@/lib/types";
+import { MenuItem, PastOrder } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -47,7 +48,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
   const {
     setTable,
     clearCart,
-    pastOrders: allPastOrders,
+    pastOrders: originalPastOrders,
+    activeOrders,
     clearTableSession,
     updatePaymentMethod,
     tableNumber,
@@ -97,6 +99,9 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       // Sync Context
       setTableId(String(foundTable.id));
       setTable(foundTable.tableNumber);
+
+      // Explicitly fetch orders for this table to bypass global limits/filters
+      fetchRelevantOrders(undefined, String(foundTable.id));
     } else {
       console.warn(
         `[TableDetails] Table Number ${targetTableNumber} not found in statuses.`
@@ -104,19 +109,33 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     }
   }, [tableId, tableStatuses, isTablesLoading, setTable, setTableId]);
 
+  // --- Combine and Filter Orders for Immediate Load ---
+  // Combine originalPastOrders (fetched on mount) with activeOrders (already in memory from dashboard)
+  const combinedOrders = useMemo(() => {
+    const map = new Map<string, PastOrder>();
+    // Add active orders first (immediate availability)
+    activeOrders?.forEach((o) => map.set(o.id, o));
+    // Add past orders (potentially more complete/historical)
+    originalPastOrders?.forEach((o) => map.set(o.id, o));
+    return Array.from(map.values());
+  }, [originalPastOrders, activeOrders]);
+
   // Filter orders using the RESOLVED Database ID
-  const pastOrders = allPastOrders.filter(
-    (o) =>
-      ((activeTable &&
-        (o.tableId === String(activeTable.id) ||
-          o.tableNumber === activeTable.tableNumber)) ||
-        (!activeTable && o.tableId === tableId)) && // Fallback
-      // Filter out 'settled' orders (Paid AND (Served OR Completed))
-      !(
-        o.paymentStatus === "Approved" &&
-        (o.status === "Served" || o.status === "Completed")
-      )
-  );
+  const pastOrders = useMemo(() => {
+    return combinedOrders.filter(
+      (o) =>
+        ((activeTable &&
+          (o.tableId === String(activeTable.id) ||
+            o.tableNumber === activeTable.tableNumber)) ||
+          (!activeTable &&
+            (o.tableId === tableId || o.tableNumber === tableId))) && // Fallback
+        // Filter out 'settled' orders (Paid AND (Served OR Completed))
+        !(
+          o.paymentStatus === "Approved" &&
+          (o.status === "Served" || o.status === "Completed")
+        )
+    );
+  }, [combinedOrders, activeTable, tableId]);
 
   // Load persisted details on mount/table change
   useEffect(() => {
@@ -855,7 +874,11 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-0 bg-white/40 dark:bg-slate-900/30 transition-colors">
-              {aggregatedItems.length === 0 ? (
+              {isTablesLoading || (!activeTable && !pastOrders.length) ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
+                </div>
+              ) : aggregatedItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50 space-y-3 p-8">
                   <div className="p-5 rounded-full bg-slate-100/50 shadow-inner">
                     <Banknote className="w-10 h-10 opacity-20" />

@@ -94,6 +94,7 @@ interface CartContextType {
   ) => Promise<boolean>;
   repeatOrder: (orderId: string) => Promise<void>;
   pastOrders: PastOrder[];
+  activeOrders: PastOrder[]; // Added
   kitchenOrders: KitchenOrdersState;
   updateKitchenOrderStatus: (
     orderId: string,
@@ -2351,6 +2352,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     placeOrder,
     repeatOrder,
     pastOrders,
+    activeOrders, // Added
     kitchenOrders,
     updateKitchenOrderStatus,
     requestPayment,
