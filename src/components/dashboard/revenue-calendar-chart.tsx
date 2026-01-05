@@ -19,7 +19,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, Filter, TrendingUp } from "lucide-react";
-import { format, subDays, startOfMonth, endOfMonth, isSameDay } from "date-fns";
+import {
+  format,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  isSameDay,
+  eachDayOfInterval,
+} from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -46,13 +53,34 @@ export function RevenueCalendarChart({
   dateRange,
 }: RevenueCalendarChartProps) {
   const chartData = useMemo(() => {
-    return data.map((item) => ({
-      ...item,
-      revenue: Number(item.revenue),
-      formattedDate: format(new Date(Number(item.date)), "MMM d"),
-      fullDate: format(new Date(Number(item.date)), "PP"),
-    }));
-  }, [data]);
+    if (!dateRange?.from || !dateRange?.to) {
+      return data.map((item) => ({
+        ...item,
+        revenue: Number(item.revenue),
+        formattedDate: format(new Date(Number(item.date)), "MMM d"),
+        fullDate: format(new Date(Number(item.date)), "PP"),
+      }));
+    }
+
+    const allDays = eachDayOfInterval({
+      start: dateRange.from,
+      end: dateRange.to,
+    });
+
+    return allDays.map((day) => {
+      const dayStart = day.getTime();
+      const matchingData = data.find((d) =>
+        isSameDay(new Date(Number(d.date)), day)
+      );
+
+      return {
+        date: dayStart,
+        revenue: matchingData ? Number(matchingData.revenue) : 0,
+        formattedDate: format(day, "MMM d"),
+        fullDate: format(day, "PP"),
+      };
+    });
+  }, [data, dateRange]);
 
   const totalRevenue = useMemo(() => {
     return data.reduce((sum, item) => sum + Number(item.revenue), 0);
