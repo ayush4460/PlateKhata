@@ -75,6 +75,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     id: number;
     tableNumber: string;
     status: string;
+    customerName?: string;
+    customerPhone?: string;
   } | null>(null);
 
   const [localCustomerName, setLocalCustomerName] = useState("");
@@ -94,6 +96,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
         id: foundTable.id,
         tableNumber: foundTable.tableNumber,
         status: foundTable.status,
+        customerName: foundTable.customerName,
+        customerPhone: foundTable.customerPhone,
       });
 
       // Sync Context
@@ -137,62 +141,100 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     );
   }, [combinedOrders, activeTable, tableId]);
 
-  // Load persisted details on mount/table change
+  // --- Sync Customer Details from Backend (Table Status) ---
   useEffect(() => {
     if (activeTable) {
-      const savedName = localStorage.getItem(`customer_name_${activeTable.id}`);
-      const savedPhone = localStorage.getItem(
-        `customer_phone_${activeTable.id}`
-      );
-      if (savedName) setLocalCustomerName(savedName);
-      if (savedPhone) setLocalCustomerPhone(savedPhone);
-      setIsDataLoaded(true);
-    }
-  }, [activeTable]);
+      // If backend provides details, load them
+      // We check if local state is empty to avoid overwriting user typing
+      const backendName = activeTable.customerName || "";
+      const backendPhone = activeTable.customerPhone || "";
 
-  // Persist details when they change
+      // Only set if we haven't set it yet, or if it matches what we expect from backend
+      // But we want to allow user to edit.
+      // Strategy: On mount (or table switch), load from backend.
+      if (!isDataLoaded) {
+        setLocalCustomerName(backendName);
+        setLocalCustomerPhone(backendPhone);
+        setIsDataLoaded(true);
+      }
+    }
+  }, [activeTable, isDataLoaded]);
+
+  // Persist details to backend on change (Debounced)
   useEffect(() => {
-    if (activeTable && isDataLoaded) {
-      if (localCustomerName) {
-        localStorage.setItem(
-          `customer_name_${activeTable.id}`,
-          localCustomerName
-        );
-      } else {
-        localStorage.removeItem(`customer_name_${activeTable.id}`);
-      }
+    if (!activeTable || !isDataLoaded) return;
 
-      if (localCustomerPhone) {
-        localStorage.setItem(
-          `customer_phone_${activeTable.id}`,
-          localCustomerPhone
-        );
-      } else {
-        localStorage.removeItem(`customer_phone_${activeTable.id}`);
+    const timeoutId = setTimeout(async () => {
+      // Only update if changed from what backend has?
+      // Or just send update. Backend handles it.
+      // We avoid sending empty default "Admin" if it's not user entered.
+
+      // Compare with current backend state to avoid redundant calls?
+      // activeTable.customerName might lag behind.
+
+      if (
+        localCustomerName !== activeTable.customerName ||
+        localCustomerPhone !== activeTable.customerPhone
+      ) {
+        try {
+          const token = localStorage.getItem("accessToken");
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          await fetch(`${API_BASE}/tables/${activeTable.id}/customer`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+              customerName: localCustomerName,
+              customerPhone: localCustomerPhone,
+            }),
+          });
+          // Optional: refresh tables to sync state?
+          // For now, we assume local state is source of truth until refresh.
+        } catch (e) {
+          console.error("Failed to sync customer details", e);
+        }
       }
-    }
+    }, 1000); // 1 sec debounce
+
+    return () => clearTimeout(timeoutId);
   }, [localCustomerName, localCustomerPhone, activeTable, isDataLoaded]);
 
-  // Sync customer details from orders if available but not yet edited OR persisted
+  // Sync customer details from orders if available AND backend is empty (First time inference)
   useEffect(() => {
     if (pastOrders.length > 0 && activeTable && isDataLoaded) {
-      const hasPersisted =
-        localStorage.getItem(`customer_name_${activeTable.id}`) ||
-        localStorage.getItem(`customer_phone_${activeTable.id}`);
-
-      if (!hasPersisted) {
+      if (!activeTable.customerName && !activeTable.customerPhone) {
+        // Backend empty, check orders
         const firstWithDetails = pastOrders.find(
           (o) => o.userName || o.userPhone
         );
         if (firstWithDetails) {
-          if (!localCustomerName)
-            setLocalCustomerName(firstWithDetails.userName || "");
-          if (!localCustomerPhone)
-            setLocalCustomerPhone(firstWithDetails.userPhone || "");
+          // Found details in order, update local state (which triggers backend sync)
+          if (
+            !localCustomerName &&
+            firstWithDetails.userName &&
+            firstWithDetails.userName !== "Admin"
+          )
+            setLocalCustomerName(firstWithDetails.userName);
+
+          if (
+            !localCustomerPhone &&
+            firstWithDetails.userPhone &&
+            firstWithDetails.userPhone !== "0000000000"
+          )
+            setLocalCustomerPhone(firstWithDetails.userPhone);
         }
       }
     }
-  }, [pastOrders, activeTable, isDataLoaded]);
+  }, [
+    pastOrders,
+    activeTable,
+    isDataLoaded,
+    localCustomerName,
+    localCustomerPhone,
+  ]);
 
   const totalUnpaidAmount = pastOrders.reduce((sum, order) => {
     if (order.paymentStatus !== "Approved" && order.status !== "Cancelled") {
@@ -297,8 +339,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             spiceLevel: item.spiceLevel || null,
           },
         ],
-        customerName: "Admin",
-        customerPhone: "0000000000",
+        customerName: localCustomerName || "",
+        customerPhone: localCustomerPhone || "",
         restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
         orderType: pastOrders.length > 0 ? "addon" : "regular",
       };
@@ -381,8 +423,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
               spiceLevel: null,
             },
           ],
-          customerName: "Admin",
-          customerPhone: "0000000000",
+          customerName: localCustomerName || "Admin",
+          customerPhone: localCustomerPhone || "0000000000",
           restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
           orderType: pastOrders.length > 0 ? "addon" : "regular",
         };
@@ -717,10 +759,6 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     ) {
       const targetId = activeTable ? activeTable.id : Number(tableId);
 
-      // Clear persisted customer details for this table
-      localStorage.removeItem(`customer_name_${targetId}`);
-      localStorage.removeItem(`customer_phone_${targetId}`);
-
       await clearTableSession(targetId);
       router.push(`/${slug}/dashboard`);
     }
@@ -826,14 +864,17 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
               className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-md px-2 py-1 text-sm font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600 w-full h-8 transition-all outline-none"
             />
           </div>
-          <div className="hidden sm:block h-3 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
-          <div className="flex items-center gap-2 group min-w-[150px]">
-            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 group-focus-within:text-primary transition-colors">
-              Phone:
+
+          <div className="hidden sm:block h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
+
+          {/* Customer Phone */}
+          <div className="flex items-center gap-2 flex-1 min-w-[120px]">
+            <span className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase">
+              PHONE:
             </span>
             <input
               type="text"
-              placeholder="0000000000"
+              placeholder="Guest Phone Number"
               value={localCustomerPhone}
               onChange={(e) => setLocalCustomerPhone(e.target.value)}
               className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-md px-2 py-1 text-sm font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600 w-full h-8 transition-all outline-none"

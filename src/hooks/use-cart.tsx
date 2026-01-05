@@ -524,7 +524,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     );
 
     if (storedCustomer) {
-      setCustomerDetails(storedCustomer);
+      // Validate to identify if it's the old default "Admin" or "Guest" and ignore it
+      const isDefault =
+        storedCustomer.name === "Admin" ||
+        storedCustomer.name === "Guest" ||
+        storedCustomer.phone === "0000000000";
+
+      if (!isDefault) {
+        setCustomerDetails(storedCustomer);
+      }
     }
 
     // Load session token from localStorage
@@ -965,6 +973,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         fetchKitchenOrders();
         fetchActiveOrders(); // NEW
         socket.emit("join:kitchen");
+        socket.emit("join:admin"); // Join restaurant-specific room
       }
     };
 
@@ -993,14 +1002,54 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const tableMsg = data.tableId ? `Table ${data.tableId}` : "Your order";
       toast({
         title: "Order Update",
+
         description: `${tableMsg} is ${friendlyStatus}`,
       });
       console.log("[DEBUG SOCKET] Triggering fetchRelevantOrders()");
-      fetchRelevantOrders();
+      // The original code had two fetchRelevantOrders() calls here,
+      // which seems like a potential bug or redundancy.
+      // The new logic implies one fetchRelevantOrders() call per branch.
+
+      if (data.status === "info-update") {
+        // Just refetch without toast
+        fetchRelevantOrders();
+        if (hasAuthToken()) {
+          fetchKitchenOrders();
+          fetchActiveOrders();
+        }
+        return;
+      }
+
+      // For other status updates, show toast and refetch
+      toast({
+        title: "Order Update",
+        description: `Order #${data.orderId} is now ${friendlyStatus}`,
+      });
       fetchRelevantOrders();
       if (hasAuthToken()) {
         fetchKitchenOrders();
-        fetchActiveOrders(); // NEW
+        fetchTables(); // Refresh table statuses (cards)
+        fetchActiveOrders(); // Refresh active orders for accurate table status
+      }
+    };
+
+    const handleTableUpdate = (data: any) => {
+      console.log('[DEBUG SOCKET] Event "table:update" received', data);
+
+      setBackendTables((prev) =>
+        prev.map((t) =>
+          String(t.table_id || t.id) === String(data.tableId)
+            ? {
+                ...t,
+                customer_name: data.customerName,
+                customer_phone: data.customerPhone,
+              }
+            : t
+        )
+      );
+
+      if (hasAuthToken()) {
+        fetchTables(); // Refresh table statuses (cards)
       }
     };
 
@@ -1035,14 +1084,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     socket.on("connect", handleConnect);
     socket.on("order:new", handleNewOrder);
     socket.on("order:statusUpdate", handleStatusUpdate);
+    socket.on("table:update", handleTableUpdate); // Added listener
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
 
     // If socket is already connected (re-render), ensure we join/fetch if needed
-    if (socket.connected) {
-      // Optional: We might not want to re-fetch on every render, but we need to ensure 'join' if auth changed?
-      // For now, relies on 'connect' event usually, but if we just logged in, we might need manual trigger.
-      // Handled by manual calls elsewhere or page reload for auth usually.
+    if (socket.connected && hasAuthToken()) {
+      socket.emit("join:admin");
+      socket.emit("join:kitchen");
     }
 
     // Cleanup
@@ -1050,6 +1099,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       socket.off("connect", handleConnect);
       socket.off("order:new", handleNewOrder);
       socket.off("order:statusUpdate", handleStatusUpdate);
+      socket.off("table:update", handleTableUpdate);
       socket.off("disconnect", handleDisconnect);
       socket.off("connect_error", handleConnectError);
     };
@@ -1118,6 +1168,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           activeOrdersCount: tableOrders.length, // Added helper
           unpaidAmount, // Added helper
           occupiedSince,
+          customerName: t.customer_name,
+          customerPhone: t.customer_phone,
         };
       });
 
@@ -1844,6 +1896,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           description: `Marked ${successCount} orders as Paid via ${method}`,
         });
         fetchRelevantOrders();
+        fetchActiveOrders(); // Update dashboard cards immediately
       } else {
         toast({
           variant: "destructive",

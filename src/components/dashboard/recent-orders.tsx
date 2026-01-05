@@ -812,12 +812,16 @@ export function RecentOrders() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <div className="font-medium">
-                                  {group.userName}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {group.userPhone}
-                                </div>
+                                {group.userName && (
+                                  <div className="font-medium">
+                                    {group.userName}
+                                  </div>
+                                )}
+                                {group.userPhone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {group.userPhone}
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="capitalize">

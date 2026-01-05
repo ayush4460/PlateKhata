@@ -132,6 +132,8 @@ export interface TableStatus {
   totalAmount?: number;
   unpaidAmount?: number;
   occupiedSince?: number;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 export interface SellingItem {

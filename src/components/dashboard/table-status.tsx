@@ -210,10 +210,7 @@ export function TableStatus() {
                           {(isOccupied || isPaidOccupied) && (
                             <div className="absolute top-0 left-1/2 -translate-x-1/2 z-0 w-full px-6 text-center">
                               <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 truncate block">
-                                {typeof window !== "undefined" &&
-                                  localStorage.getItem(
-                                    `customer_name_${table.id}`
-                                  )}
+                                {table.customerName || ""}
                               </span>
                             </div>
                           )}
