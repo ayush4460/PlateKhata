@@ -99,7 +99,7 @@ export function TableStatus() {
             <p>Loading tables...</p>
           </div>
         ) : Array.isArray(tableStatuses) && tableStatuses.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-3">
             {tableStatuses
               .sort((a, b) => {
                 const numA = parseInt(a.tableNumber);
@@ -134,25 +134,25 @@ export function TableStatus() {
                       {/* FRONT SIDE */}
                       <Card
                         className={cn(
-                          "absolute w-full h-full backface-hidden flex flex-col items-center justify-between p-3 border-2 shadow-sm",
+                          "absolute w-full h-full backface-hidden flex flex-col items-center justify-between p-2 border-2 shadow-sm",
                           getStatusStyles(table.status)
                         )}
                       >
-                        <div className="flex flex-col items-center gap-1 mt-2 relative w-full h-full justify-center">
+                        <div className="flex flex-col items-center gap-1 mt-1 relative w-full h-full justify-center">
                           {/* Move Icon */}
                           {(isOccupied || isPaidOccupied) && (
-                            <div className="absolute -top-3 -right-1.5 z-10">
+                            <div className="absolute -top-2 -right-1 z-10">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 bg-black/10 hover:bg-black/20 text-current rounded-full"
+                                className="h-6 w-6 bg-black/10 hover:bg-black/20 text-current rounded-full"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSourceTable(table);
                                   setIsMoveModalOpen(true);
                                 }}
                               >
-                                <MoveHorizontal className="w-4 h-4" />
+                                <MoveHorizontal className="w-3 h-3" />
                               </Button>
                             </div>
                           )}
@@ -161,28 +161,30 @@ export function TableStatus() {
                           {isOccupied &&
                             table.unpaidAmount &&
                             table.unpaidAmount > 0 && (
-                              <div className="absolute -top-3 -left-1.5 z-10">
+                              <div className="absolute -top-2 -left-1 z-10">
                                 <Button
                                   variant="secondary"
                                   size="icon"
-                                  className="h-8 w-8 bg-black/10 hover:bg-black/20 text-current rounded-full"
+                                  className="h-6 w-6 bg-black/10 hover:bg-black/20 text-current rounded-full"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setFlippedTableId(table.id);
                                   }}
                                 >
-                                  <span className="text-xs font-bold">Pay</span>
+                                  <span className="text-[10px] font-bold">
+                                    Pay
+                                  </span>
                                 </Button>
                               </div>
                             )}
 
                           {/* Finish/Clear Icon (for Paid & Occupied) */}
                           {isPaidOccupied && (
-                            <div className="absolute -top-3 -left-1.5 z-10">
+                            <div className="absolute -top-2 -left-1 z-10">
                               <Button
                                 variant="secondary"
                                 size="icon"
-                                className="h-8 w-8 bg-green-600/20 hover:bg-green-600/40 text-green-700 dark:text-green-300 rounded-full border border-green-600/30"
+                                className="h-6 w-6 bg-green-600/20 hover:bg-green-600/40 text-green-700 dark:text-green-300 rounded-full border border-green-600/30"
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   if (
@@ -199,14 +201,14 @@ export function TableStatus() {
                                   }
                                 }}
                               >
-                                <CheckCheck className="w-4 h-4" />
+                                <CheckCheck className="w-3 h-3" />
                               </Button>
                             </div>
                           )}
 
                           {/* Customer Name Display */}
                           {(isOccupied || isPaidOccupied) && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-0 w-full px-8 text-center">
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-0 w-full px-6 text-center">
                               <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 truncate block">
                                 {typeof window !== "undefined" &&
                                   localStorage.getItem(
@@ -216,8 +218,8 @@ export function TableStatus() {
                             </div>
                           )}
 
-                          <Armchair className="w-6 h-6 opacity-80" />
-                          <p className="font-bold text-xl">
+                          <Armchair className="w-5 h-5 opacity-80" />
+                          <p className="font-bold text-lg leading-none">
                             {table.tableNumber}
                           </p>
 
@@ -225,7 +227,7 @@ export function TableStatus() {
                             <Badge
                               variant="outline"
                               className={cn(
-                                "border-0 text-[10px] h-6 mt-1 font-bold px-1",
+                                "border-0 text-[10px] h-5 mt-0.5 font-bold px-1",
                                 isPaidOccupied
                                   ? "bg-blue-600/20 text-blue-900 dark:text-blue-100"
                                   : "bg-yellow-500/70"
@@ -239,10 +241,11 @@ export function TableStatus() {
                               {new Intl.NumberFormat("en-IN", {
                                 style: "currency",
                                 currency: "INR",
+                                maximumFractionDigits: 0,
                               }).format(amountToShow)}
                             </Badge>
                           ) : (
-                            <div className="h-6 mt-1" />
+                            <div className="h-5 mt-0.5" />
                           )}
                           {(isOccupied || isPaidOccupied) &&
                             table.occupiedSince && (

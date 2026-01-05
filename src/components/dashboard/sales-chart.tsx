@@ -1,11 +1,12 @@
 "use client";
 
 import {
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
   ResponsiveContainer,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
 } from "recharts";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, TrendingUp } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -155,7 +156,10 @@ export function SalesChart() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
-          <CardTitle>Sales Overview</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Sales Overview
+          </CardTitle>
           <CardDescription>
             {advancedDateRange?.from ? (
               <>
@@ -181,7 +185,30 @@ export function SalesChart() {
       </CardHeader>
       <CardContent className="pl-2">
         <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={salesData}>
+          <AreaChart
+            data={salesData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="hsl(var(--primary))"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="hsl(var(--primary))"
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              opacity={0.2}
+              stroke="hsl(var(--muted-foreground))"
+            />
             <XAxis
               dataKey="name"
               stroke="#888888"
@@ -201,29 +228,25 @@ export function SalesChart() {
             <Tooltip
               contentStyle={{
                 backgroundColor: "hsl(var(--background))",
+                borderColor: "hsl(var(--border))",
                 borderRadius: "var(--radius)",
-                border: "1px solid hsl(var(--border))",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              }}
-              cursor={{
-                stroke: "hsl(var(--muted-foreground))",
-                strokeWidth: 1,
-                strokeDasharray: "4 4",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               }}
               formatter={(value: number) => [`₹${value.toFixed(2)}`, "Sales"]}
+              labelStyle={{
+                color: "hsl(var(--foreground))",
+                fontWeight: "bold",
+              }}
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="sales"
               stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{
-                r: 6,
-                style: { fill: "hsl(var(--primary))", opacity: 0.8 },
-              }}
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#colorSales)"
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

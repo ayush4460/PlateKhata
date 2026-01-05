@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { PaymentStats } from "@/lib/types";
 import { CHART_COLORS } from "@/lib/theme-config";
+import { CreditCard } from "lucide-react";
 
 interface PaymentPieChartProps {
   data: PaymentStats[];
@@ -30,7 +31,10 @@ export function PaymentPieChart({ data }: PaymentPieChartProps) {
   return (
     <Card className="col-span-1">
       <CardHeader>
-        <CardTitle>Payment Methods</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-primary" />
+          Payment Methods
+        </CardTitle>
         <CardDescription>Revenue share by payment type</CardDescription>
       </CardHeader>
       <CardContent className="pl-2">
@@ -59,6 +63,7 @@ export function PaymentPieChart({ data }: PaymentPieChartProps) {
                 backgroundColor: "hsl(var(--background))",
                 borderColor: "hsl(var(--border))",
                 borderRadius: "var(--radius)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               }}
               itemStyle={{ color: "hsl(var(--foreground))" }}
             />

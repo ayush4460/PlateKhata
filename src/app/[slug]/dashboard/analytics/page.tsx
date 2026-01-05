@@ -5,6 +5,7 @@ import { SalesChart } from "@/components/dashboard/sales-chart";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { PaymentPieChart } from "@/components/dashboard/payment-pie-chart";
 import { TopSellingItems } from "@/components/dashboard/top-selling-items";
+import { OnlineSalesChart } from "@/components/dashboard/online-sales-chart"; // Imported
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Separator } from "@/components/ui/separator";
 
@@ -55,6 +56,11 @@ export default function AnalyticsPage() {
         <div className="lg:col-span-2 h-full">
           <PaymentPieChart data={paymentStats} />
         </div>
+      </div>
+
+      {/* Online Sales Overview */}
+      <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-1000 delay-150">
+        <OnlineSalesChart />
       </div>
 
       {/* Top Selling Items - Full Width Detail */}
