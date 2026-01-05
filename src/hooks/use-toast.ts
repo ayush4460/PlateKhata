@@ -143,6 +143,14 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
+  // Disabled as per user request to remove toast messages from API hits in admin panel
+  return {
+    id: "disabled",
+    dismiss: () => {},
+    update: () => {},
+  }
+
+  /* Original implementation
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -169,6 +177,7 @@ function toast({ ...props }: Toast) {
     dismiss,
     update,
   }
+  */
 }
 
 function useToast() {
