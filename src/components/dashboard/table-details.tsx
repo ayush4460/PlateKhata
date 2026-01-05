@@ -109,7 +109,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     (o) =>
       ((activeTable &&
         (o.tableId === String(activeTable.id) ||
-          o.tableNumber === String(activeTable.id))) ||
+          o.tableNumber === activeTable.tableNumber)) ||
         (!activeTable && o.tableId === tableId)) && // Fallback
       // Filter out 'settled' orders (Paid AND (Served OR Completed))
       !(

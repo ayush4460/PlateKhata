@@ -134,6 +134,25 @@ export interface TableStatus {
   occupiedSince?: number;
 }
 
+export interface SellingItem {
+  item_id: number;
+  item_name: string;
+  total_quantity: string | number;
+  total_revenue: string | number;
+}
+
+export interface AdvancedAnalytics {
+  topSelling: {
+    today: SellingItem[];
+    week: SellingItem[];
+    month: SellingItem[];
+  };
+  revenueSeries: {
+    date: number;
+    revenue: number;
+  }[];
+}
+
 export interface PaymentStats {
   name: string;
   value: number;

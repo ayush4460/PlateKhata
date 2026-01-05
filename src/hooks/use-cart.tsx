@@ -21,8 +21,11 @@ import type {
   TableStatus,
   AnalyticsPeriod,
   BackendOrder,
-  PaymentStats, // Added
+  PaymentStats,
+  AdvancedAnalytics,
+  SellingItem,
 } from "@/lib/types";
+import { DateRange } from "react-day-picker";
 import { useToast } from "./use-toast";
 import {
   startOfWeek,
@@ -31,6 +34,7 @@ import {
   endOfMonth,
   isWithinInterval,
   format,
+  subDays,
   eachDayOfInterval,
   eachHourOfInterval,
   eachMonthOfInterval,
@@ -166,6 +170,10 @@ interface CartContextType {
     tokenOverride?: string,
     tableIdOverride?: string
   ) => Promise<void>;
+  advancedAnalytics: AdvancedAnalytics | null;
+  fetchAdvancedAnalytics: (start?: number, end?: number) => Promise<void>;
+  advancedDateRange: DateRange | undefined;
+  setAdvancedDateRange: (range: DateRange | undefined) => void;
 }
 
 // Create the context
@@ -371,6 +379,46 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     startDate?: string;
     endDate?: string;
   }>({});
+  const [advancedAnalytics, setAdvancedAnalytics] =
+    useState<AdvancedAnalytics | null>(null);
+  const [advancedDateRange, setAdvancedDateRange] = useState<
+    DateRange | undefined
+  >({
+    from: subDays(new Date(), 7),
+    to: new Date(),
+  });
+
+  const fetchAdvancedAnalytics = useCallback(
+    async (start?: number, end?: number) => {
+      if (!hasAuthToken()) return;
+
+      try {
+        let url = `${API_BASE}/orders/analytics/advanced`;
+        const params = new URLSearchParams();
+        if (start) params.append("startDate", String(start));
+        if (end) params.append("endDate", String(end));
+
+        const res = await fetch(`${url}?${params.toString()}`, {
+          headers: { ...authHeaders() },
+        });
+
+        if (!res.ok) throw new Error("Failed to fetch advanced analytics");
+        const data = await res.json();
+        setAdvancedAnalytics(data.data || data);
+      } catch (err) {
+        console.error("[useCart] fetchAdvancedAnalytics error:", err);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (hasAuthToken()) {
+      const start = advancedDateRange?.from?.getTime();
+      const end = advancedDateRange?.to?.getTime();
+      fetchAdvancedAnalytics(start, end);
+    }
+  }, [advancedDateRange, fetchAdvancedAnalytics]);
 
   const fetchSettings = useCallback(async () => {
     if (
@@ -1559,6 +1607,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       clearCart,
       toast,
       fetchRelevantOrders,
+      advancedAnalytics,
+      fetchAdvancedAnalytics,
+      advancedDateRange,
+      setAdvancedDateRange,
       pastOrders,
       isCartLoading,
       sessionToken,
@@ -2363,6 +2415,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setOrderFilters,
     isTablesLoading,
     fetchRelevantOrders, // Exposed
+    advancedAnalytics,
+    fetchAdvancedAnalytics,
+    advancedDateRange,
+    setAdvancedDateRange,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

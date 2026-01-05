@@ -13,7 +13,6 @@ export default function DashboardPage({ params }: PageProps) {
   // Use params.slug if needed for fetching specific dashboard data in the future
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
-      <StatsCards />
       <TableStatus />
       <RecentOrders />
       <div className="grid gap-4 md:grid-cols-2">
