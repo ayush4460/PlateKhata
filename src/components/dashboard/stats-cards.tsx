@@ -1,5 +1,6 @@
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import {
   DollarSign,
   ShoppingBag,
@@ -23,104 +24,62 @@ import Link from "next/link";
 import { useParams } from "next/navigation"; // Added useParams
 
 export function StatsCards() {
-  const { analytics, analyticsPeriod, setAnalyticsPeriod } = useCart();
+  const { analytics } = useCart();
   const params = useParams();
   const slug = params?.slug as string;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        {/* ... existing header ... */}
-        <h2 className="text-lg font-semibold">Overview</h2>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4" />
-              <span>
-                {
-                  {
-                    daily: "Today",
-                    weekly: "This Week",
-                    monthly: "This Month",
-                    "all-time": "All Time",
-                  }[analyticsPeriod]
-                }
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end">
-            <DropdownMenuLabel>Filter by period</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup
-              value={analyticsPeriod}
-              onValueChange={(value) =>
-                setAnalyticsPeriod(value as AnalyticsPeriod)
-              }
-            >
-              <DropdownMenuRadioItem value="daily">Today</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="weekly">
-                This Week
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="monthly">
-                This Month
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="all-time">
-                All Time
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Link href={`/${slug}/dashboard/analytics`}>
-          <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Revenue
-              </CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ₹{analytics.totalRevenue.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {analytics.revenueChangeText}
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href={`/${slug}/dashboard/orders`}>
-          <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">New Orders</CardTitle>
-              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">+{analytics.newOrders}</div>
-              <p className="text-xs text-muted-foreground">
-                {analytics.ordersChangeText}
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Card>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <Link href={`/${slug}/dashboard/analytics`}>
+        <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer border-none shadow-md bg-gradient-to-br from-background to-secondary/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Avg. Order Value
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Revenue
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <DollarSign className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{analytics.avgOrderValue.toFixed(2)}
+              ₹{analytics.totalRevenue.toFixed(2)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {analytics.avgValueChangeText}
+            <p className="text-xs text-muted-foreground mt-1">
+              {analytics.revenueChangeText}
             </p>
           </CardContent>
         </Card>
-      </div>
+      </Link>
+      <Link href={`/${slug}/dashboard/orders`}>
+        <Card className="transition-all hover:scale-105 hover:bg-muted/50 cursor-pointer border-none shadow-md bg-gradient-to-br from-background to-secondary/10">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              New Orders
+            </CardTitle>
+            <ShoppingBag className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">+{analytics.newOrders}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {analytics.ordersChangeText}
+            </p>
+          </CardContent>
+        </Card>
+      </Link>
+      <Card className="border-none shadow-md bg-gradient-to-br from-background to-secondary/10">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Avg. Order Value
+          </CardTitle>
+          <TrendingUp className="h-4 w-4 text-primary" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            ₹{analytics.avgOrderValue.toFixed(2)}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {analytics.avgValueChangeText}
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

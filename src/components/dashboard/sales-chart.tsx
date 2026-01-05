@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  Bar,
-  BarChart,
+  Line,
+  LineChart,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -40,15 +40,22 @@ import {
 } from "@/lib/utils";
 
 export function SalesChart() {
-  const { salesData, analyticsPeriod, paymentStats, pastOrders } = useCart(); // paymentStats added to hook
+  const { salesData, advancedDateRange, paymentStats, pastOrders } = useCart(); // paymentStats added to hook
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
-    const { start, end } = getISTPeriodEpochRange(analyticsPeriod);
+    // Use advancedDateRange or defaults
+    const start = advancedDateRange?.from
+      ? advancedDateRange.from.getTime()
+      : 0;
+    const end = advancedDateRange?.to
+      ? advancedDateRange.to.getTime()
+      : Date.now();
 
     // Format start/end for display (convert to Fake Local Date first)
-    const startDisplay = toISTDisplayDate(start);
-    const endDisplay = toISTDisplayDate(end);
+    // Note: advancedDateRange is already Local Date objects usually
+    const startDisplay = advancedDateRange?.from || new Date();
+    const endDisplay = advancedDateRange?.to || new Date();
 
     const dateRangeStr = `${format(startDisplay, "MMM d, yyyy")} - ${format(
       endDisplay,
@@ -60,14 +67,7 @@ export function SalesChart() {
     doc.text("Sales Report", 14, 22);
 
     doc.setFontSize(11);
-    doc.text(
-      `Period: ${
-        analyticsPeriod.charAt(0).toUpperCase() + analyticsPeriod.slice(1)
-      }`,
-      14,
-      30
-    );
-    doc.text(`Date Range: ${dateRangeStr}`, 14, 36);
+    doc.text(`Date Range: ${dateRangeStr}`, 14, 30);
 
     // --- Section 1: Sales Overview (Existing) ---
     doc.setFontSize(14);
@@ -120,7 +120,7 @@ export function SalesChart() {
     // --- Section 3: Detailed Payment Logs ---
     // Filter orders matching the period and approved status
     // Note: Re-filtering here to ensure correct listing in PDF
-    const interval = { start, end };
+    // const interval = { start, end }; // Unused variable
 
     // We can cast here because we know pastOrders is an array if we are here (from useCart check)
     const approvedOrders = (pastOrders || []).filter(
@@ -148,9 +148,7 @@ export function SalesChart() {
       theme: "striped",
     });
 
-    doc.save(
-      `Sales_Report_${analyticsPeriod}_${format(new Date(), "yyyyMMdd")}.pdf`
-    );
+    doc.save(`Sales_Report_${format(new Date(), "yyyyMMdd")}.pdf`);
   };
 
   return (
@@ -158,7 +156,18 @@ export function SalesChart() {
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
           <CardTitle>Sales Overview</CardTitle>
-          <CardDescription>Summary for {analyticsPeriod} view.</CardDescription>
+          <CardDescription>
+            {advancedDateRange?.from ? (
+              <>
+                {format(advancedDateRange.from, "MMM d, yyyy")} -{" "}
+                {advancedDateRange.to
+                  ? format(advancedDateRange.to, "MMM d, yyyy")
+                  : "..."}
+              </>
+            ) : (
+              "Select Date Range"
+            )}
+          </CardDescription>
         </div>
         <Button
           size="sm"
@@ -172,13 +181,14 @@ export function SalesChart() {
       </CardHeader>
       <CardContent className="pl-2">
         <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={salesData}>
+          <LineChart data={salesData}>
             <XAxis
               dataKey="name"
               stroke="#888888"
               fontSize={12}
               tickLine={false}
               axisLine={false}
+              tickMargin={10}
             />
             <YAxis
               stroke="#888888"
@@ -186,22 +196,34 @@ export function SalesChart() {
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => `₹${value}`}
+              tickMargin={10}
             />
             <Tooltip
-              cursor={{ fill: "hsl(var(--secondary))" }}
               contentStyle={{
                 backgroundColor: "hsl(var(--background))",
                 borderRadius: "var(--radius)",
                 border: "1px solid hsl(var(--border))",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+              cursor={{
+                stroke: "hsl(var(--muted-foreground))",
+                strokeWidth: 1,
+                strokeDasharray: "4 4",
               }}
               formatter={(value: number) => [`₹${value.toFixed(2)}`, "Sales"]}
             />
-            <Bar
+            <Line
+              type="monotone"
               dataKey="sales"
-              fill="hsl(var(--primary))"
-              radius={[4, 4, 0, 0]}
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{
+                r: 6,
+                style: { fill: "hsl(var(--primary))", opacity: 0.8 },
+              }}
             />
-          </BarChart>
+          </LineChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

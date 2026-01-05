@@ -142,11 +142,7 @@ export interface SellingItem {
 }
 
 export interface AdvancedAnalytics {
-  topSelling: {
-    today: SellingItem[];
-    week: SellingItem[];
-    month: SellingItem[];
-  };
+  topSelling: SellingItem[];
   revenueSeries: {
     date: number;
     revenue: number;

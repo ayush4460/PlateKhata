@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -8,28 +7,16 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Package, IndianRupee } from "lucide-react";
-
-interface SellingItem {
-  item_id: number;
-  item_name: string;
-  total_quantity: string | number;
-  total_revenue: string | number;
-}
+import { SellingItem } from "@/lib/types";
 
 interface TopSellingItemsProps {
-  data: {
-    today: SellingItem[];
-    week: SellingItem[];
-    month: SellingItem[];
-  };
+  data: SellingItem[];
 }
 
 export function TopSellingItems({ data }: TopSellingItemsProps) {
-  const [period, setPeriod] = useState<"today" | "week" | "month">("today");
-
-  const currentData = data?.[period] || [];
+  // Safe fallback if data is undefined
+  const currentData = Array.isArray(data) ? data : [];
 
   return (
     <Card className="col-span-3 transition-all duration-300 hover:shadow-md border-none bg-gradient-to-br from-background to-secondary/20">
@@ -42,32 +29,6 @@ export function TopSellingItems({ data }: TopSellingItemsProps) {
             </CardTitle>
             <CardDescription>Most popular items by revenue</CardDescription>
           </div>
-          <Tabs
-            value={period}
-            onValueChange={(v) => setPeriod(v as any)}
-            className="w-auto"
-          >
-            <TabsList className="grid w-full grid-cols-3 h-8 p-1 bg-muted/50">
-              <TabsTrigger
-                value="today"
-                className="text-[10px] uppercase tracking-wider px-2"
-              >
-                Today
-              </TabsTrigger>
-              <TabsTrigger
-                value="week"
-                className="text-[10px] uppercase tracking-wider px-2"
-              >
-                Week
-              </TabsTrigger>
-              <TabsTrigger
-                value="month"
-                className="text-[10px] uppercase tracking-wider px-2"
-              >
-                Month
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
       </CardHeader>
       <CardContent>

@@ -46,6 +46,7 @@ import {
   endOfYear,
   formatDistanceToNow,
   parseISO,
+  differenceInDays,
 } from "date-fns";
 import {
   getISTDate,
@@ -335,8 +336,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     switch (period) {
       case "daily":
-        start = getISTStartOfDay();
-        end = getISTEndOfDay();
+        start = startOfToday();
+        end = endOfToday();
         break;
       case "weekly":
         start = startOfWeek(now, { weekStartsOn: 1 });
@@ -354,10 +355,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (start && end) {
-      setOrderFilters({
-        startDate: format(start, "yyyy-MM-dd"),
-        endDate: format(end, "yyyy-MM-dd"),
-      });
+      setAdvancedDateRange({ from: start, to: end });
     }
   }, []);
   const [isCartLoading, setIsCartLoading] = useState(true);
@@ -385,9 +383,19 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [advancedDateRange, setAdvancedDateRange] = useState<
     DateRange | undefined
   >({
-    from: subDays(new Date(), 7),
-    to: new Date(),
+    from: startOfToday(),
+    to: endOfToday(),
   });
+
+  // Sync advancedDateRange to orderFilters
+  useEffect(() => {
+    if (advancedDateRange?.from && advancedDateRange?.to) {
+      setOrderFilters({
+        startDate: format(advancedDateRange.from, "yyyy-MM-dd"),
+        endDate: format(advancedDateRange.to, "yyyy-MM-dd"),
+      });
+    }
+  }, [advancedDateRange]);
 
   const fetchAdvancedAnalytics = useCallback(
     async (start?: number, end?: number) => {
@@ -2090,37 +2098,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     // If they are paying ("click payment"), they become Approved.
     // So working with "approvedOrders" is likely what they are looking at in the screenshot (Revenue & New Orders).
 
-    const { start: todayStart, end: todayEnd } = getISTDayRange(); // Defaults to now
-
-    // Helper to convert Fake Local Date (from date-fns helpers) to Absolute IST Epoch
-    const toEpoch = (fakeLocal: Date, isEnd = false) => {
-      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
-      return new Date(iso).getTime();
-    };
-
-    const nowFake = toISTDisplayDate(Date.now());
-
-    const getPeriodInterval = (period: AnalyticsPeriod) => {
-      if (period === "daily") {
-        return { start: todayStart, end: todayEnd };
-      }
-      if (period === "weekly") {
-        return {
-          start: toEpoch(startOfWeek(nowFake, { weekStartsOn: 1 })),
-          end: toEpoch(endOfWeek(nowFake, { weekStartsOn: 1 })),
-        };
-      }
-      if (period === "monthly") {
-        return {
-          start: toEpoch(startOfMonth(nowFake)),
-          end: toEpoch(endOfMonth(nowFake)),
-        };
-      }
-      // All time
-      return { start: 0, end: Date.now() };
-    };
-
-    const { start, end } = getPeriodInterval(analyticsPeriod);
+    // Use advancedDateRange
+    const start = advancedDateRange?.from
+      ? advancedDateRange.from.getTime()
+      : 0;
+    const end = advancedDateRange?.to
+      ? advancedDateRange.to.getTime()
+      : Date.now();
 
     // Filter orders by date
     const periodOrders = approvedOrders.filter(
@@ -2132,9 +2116,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       0
     );
 
-    // DEBUG LOGGING for Analytics
-    // console.log(`[DEBUG ANALYTICS] Period: ${analyticsPeriod}, Orders found: ${periodOrders.length}`);
-
     // Count unique sessions instead of total orders
     const uniqueSessions = new Set();
 
@@ -2143,15 +2124,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (sid) {
         uniqueSessions.add(sid);
       } else {
-        // Fallback: If no session ID, valid orders must be counted by ID
-        // console.warn('[DEBUG ANALYTICS] Order missing session ID:', o.id);
         uniqueSessions.add(o.id);
       }
     });
 
     const newOrdersCount = uniqueSessions.size;
-
-    // console.log(`[DEBUG ANALYTICS] Unique Sessions: ${newOrdersCount}`);
 
     const avgOrderValue =
       newOrdersCount > 0 ? totalRevenue / newOrdersCount : 0;
@@ -2160,11 +2137,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       totalRevenue,
       newOrders: newOrdersCount,
       avgOrderValue,
-      revenueChangeText: `vs previous ${analyticsPeriod}`,
-      ordersChangeText: `this ${analyticsPeriod}`,
-      avgValueChangeText: `this ${analyticsPeriod}`,
+      revenueChangeText: `vs previous period`,
+      ordersChangeText: `this period`,
+      avgValueChangeText: `this period`,
     };
-  }, [pastOrders, analyticsPeriod]);
+  }, [pastOrders, advancedDateRange]);
 
   const salesData = useMemo(() => {
     if (!hasAuthToken() || !Array.isArray(pastOrders)) return [];
@@ -2174,17 +2151,26 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       (o) => o.paymentStatus === "Approved"
     );
 
-    // Initialize map keys using Fake Local Date (for iteration)
+    const start = advancedDateRange?.from || startOfToday();
+    const end = advancedDateRange?.to || endOfToday();
+    const durationDays = differenceInDays(end, start);
+
+    // Determine interval and keys based on duration
     let intervalFake: { start: Date; end: Date };
-    let formatKey = "E";
+    let formatKey = "HH:00";
     let dateData: Record<string, number> = {};
 
-    if (analyticsPeriod === "daily") {
-      intervalFake = { start: startOfToday(), end: endOfToday() }; // Uses local system time, effectively iterating 00-23 hours
-      // Better: Construct from IST fake
-      intervalFake = { start: startOfDay(nowFake), end: endOfDay(nowFake) };
+    // Logic:
+    // < 2 days -> Hourly
+    // <= 62 days -> Daily
+    // > 62 days -> Monthly
+
+    if (durationDays < 2) {
+      // Hourly
+      intervalFake = { start, end };
       formatKey = "HH:00";
       try {
+        // We might need to ensure we cover the whole range in hours
         dateData = eachHourOfInterval(intervalFake).reduce(
           (acc, hour) => ({ ...acc, [format(hour, "HH:00")]: 0 }),
           {}
@@ -2192,41 +2178,26 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         dateData = {};
       }
-    } else if (analyticsPeriod === "weekly") {
-      intervalFake = {
-        start: startOfWeek(nowFake, { weekStartsOn: 1 }),
-        end: endOfWeek(nowFake, { weekStartsOn: 1 }),
-      };
-      formatKey = "E";
+    } else if (durationDays <= 62) {
+      // Daily
+      intervalFake = { start, end };
+      formatKey = "MMM d";
       dateData = eachDayOfInterval(intervalFake).reduce(
-        (acc, day) => ({ ...acc, [format(day, "E")]: 0 }),
-        {}
-      );
-    } else if (analyticsPeriod === "monthly") {
-      intervalFake = { start: startOfMonth(nowFake), end: endOfMonth(nowFake) };
-      formatKey = "d";
-      dateData = eachDayOfInterval(intervalFake).reduce(
-        (acc, day) => ({ ...acc, [format(day, "d")]: 0 }),
+        (acc, day) => ({ ...acc, [format(day, "MMM d")]: 0 }),
         {}
       );
     } else {
-      intervalFake = { start: startOfYear(nowFake), end: endOfYear(nowFake) };
-      formatKey = "MMM";
+      // Monthly
+      intervalFake = { start, end };
+      formatKey = "MMM yyyy";
       dateData = eachMonthOfInterval(intervalFake).reduce(
-        (acc, month) => ({ ...acc, [format(month, "MMM")]: 0 }),
+        (acc, month) => ({ ...acc, [format(month, "MMM yyyy")]: 0 }),
         {}
       );
     }
 
-    // Filter using Absolute IST Epochs logic
-    // We reuse the logic from analytics useMemo or duplicate it here for safety
-    const toEpoch = (fakeLocal: Date) => {
-      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
-      return new Date(iso).getTime();
-    };
-
-    const startEpoch = toEpoch(intervalFake.start);
-    const endEpoch = toEpoch(intervalFake.end);
+    const startEpoch = start.getTime();
+    const endEpoch = end.getTime();
 
     const filteredOrders = approvedOrders.filter(
       (o) => o.date >= startEpoch && o.date <= endEpoch
@@ -2238,6 +2209,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const key = format(istDate, formatKey);
       if (dateData[key] !== undefined) {
         dateData[key] += order.total;
+      } else {
+        // Fallback for edge cases where interval generator missed a bucket
+        dateData[key] = (dateData[key] || 0) + order.total;
       }
     });
 
@@ -2245,7 +2219,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       name,
       sales: Math.round(sales),
     }));
-  }, [pastOrders, analyticsPeriod]);
+  }, [pastOrders, advancedDateRange]);
 
   // --- Payment Stats Calculation ---
   const paymentStats = useMemo(() => {
@@ -2256,35 +2230,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       (o) => o.paymentStatus === "Approved"
     );
 
-    const toEpoch = (fakeLocal: Date) => {
-      const iso = format(fakeLocal, "yyyy-MM-dd'T'HH:mm:ss.SSS") + "+05:30";
-      return new Date(iso).getTime();
-    };
+    const start = advancedDateRange?.from
+      ? advancedDateRange.from.getTime()
+      : 0;
+    const end = advancedDateRange?.to
+      ? advancedDateRange.to.getTime()
+      : Date.now();
 
-    const getPeriodInterval = (period: AnalyticsPeriod) => {
-      if (period === "daily") {
-        const { start, end } = getISTDayRange();
-        return { start, end };
-      }
-      if (period === "weekly") {
-        return {
-          start: toEpoch(startOfWeek(nowFake, { weekStartsOn: 1 })),
-          end: toEpoch(endOfWeek(nowFake, { weekStartsOn: 1 })),
-        };
-      }
-      if (period === "monthly") {
-        return {
-          start: toEpoch(startOfMonth(nowFake)),
-          end: toEpoch(endOfMonth(nowFake)),
-        };
-      }
-      return {
-        start: toEpoch(startOfYear(nowFake)),
-        end: toEpoch(endOfYear(nowFake)),
-      };
-    };
-
-    const { start, end } = getPeriodInterval(analyticsPeriod);
     const periodOrders = approvedOrders.filter(
       (o) => o.date >= start && o.date <= end
     );
@@ -2305,7 +2257,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       value: data.value,
       count: data.count,
     }));
-  }, [pastOrders, analyticsPeriod]);
+  }, [pastOrders, advancedDateRange]);
 
   // --- Provide State and Actions through Context ---
 
