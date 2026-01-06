@@ -126,7 +126,8 @@ interface CartContextType {
     tagline?: string,
     contactNumber?: string,
     fssaiLicNo?: string,
-    gstin?: string
+    gstin?: string,
+    caEmail?: string
   ) => Promise<void>;
   zomatoRestaurantId: string;
   swiggyRestaurantId: string;
@@ -137,6 +138,7 @@ interface CartContextType {
   contactNumber: string | null;
   fssaiLicNo: string | null;
   gstin: string | null;
+  caEmail: string | null;
   setTaxRate: (rate: number) => Promise<void>;
   menuItems: MenuItem[];
   setMenuItems: (items: MenuItem[]) => void;
@@ -322,6 +324,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [contactNumber, setContactNumber] = useState<string | null>(null);
   const [fssaiLicNo, setFssaiLicNo] = useState<string | null>(null);
   const [gstin, setGstin] = useState<string | null>(null);
+  const [caEmail, setCaEmail] = useState<string | null>(null);
   const router = useRouter();
   const [menuItems, setMenuItemsState] = useState<MenuItem[]>([]);
   const [analyticsPeriod, setAnalyticsPeriodState] =
@@ -485,7 +488,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           setContactNumber(payload.contactNumber);
         if (typeof payload.fssaiLicNo === "string")
           setFssaiLicNo(payload.fssaiLicNo);
+        if (typeof payload.fssaiLicNo === "string")
+          setFssaiLicNo(payload.fssaiLicNo);
         if (typeof payload.gstin === "string") setGstin(payload.gstin);
+        if (typeof payload.caEmail === "string") setCaEmail(payload.caEmail);
       }
     } catch (err) {
       console.error("[DEBUG SETTINGS] Failed to fetch public settings:", err);
@@ -1206,7 +1212,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       newTagline?: string,
       newContactNumber?: string,
       newFssaiLicNo?: string,
-      newGstin?: string
+      newGstin?: string,
+      newCaEmail?: string
     ) => {
       if (!hasAuthToken()) return;
       // Update local state
@@ -1222,6 +1229,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (newContactNumber !== undefined) setContactNumber(newContactNumber);
       if (newFssaiLicNo !== undefined) setFssaiLicNo(newFssaiLicNo);
       if (newGstin !== undefined) setGstin(newGstin);
+      if (newCaEmail !== undefined) setCaEmail(newCaEmail);
 
       writeToStorage("taxRate", newTax);
       writeToStorage("discountRate", newDiscount);
@@ -1259,6 +1267,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           body.contactNumber = newContactNumber;
         if (newFssaiLicNo !== undefined) body.fssaiLicNo = newFssaiLicNo;
         if (newGstin !== undefined) body.gstin = newGstin;
+        if (newCaEmail !== undefined) body.caEmail = newCaEmail;
 
         const res = await fetch(`${API_BASE}/settings`, {
           method: "PATCH",
@@ -2381,6 +2390,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     contactNumber,
     fssaiLicNo,
     gstin,
+    caEmail,
     customerDetails,
     menuItems,
     setMenuItems,

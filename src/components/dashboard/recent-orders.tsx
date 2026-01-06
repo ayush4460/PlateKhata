@@ -38,6 +38,8 @@ import {
   Filter,
   Download,
   Printer,
+  Mail,
+  Loader2,
 } from "lucide-react";
 import { generateBillPDF } from "@/lib/bill-generator";
 import {
@@ -282,6 +284,7 @@ export function RecentOrders() {
   const [expandedSessions, setExpandedSessions] = useState<
     Record<string, boolean>
   >({});
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   // Date Filtering State
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -406,6 +409,117 @@ export function RecentOrders() {
         title: "Download failed",
         description: "Could not generate bill PDF",
       });
+    }
+  };
+
+  const handleSendToCA = async () => {
+    if (pastOrders.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No orders to send for this period.",
+      });
+      return;
+    }
+
+    setIsSendingEmail(true);
+
+    try {
+      // 1. Generate Excel File Blob
+      const wb = XLSX.utils.book_new();
+      const ordersByTable: Record<string, any[]> = {};
+
+      pastOrders.forEach((order) => {
+        const tableKey = order.tableNumber || "Unknown Table";
+        if (!ordersByTable[tableKey]) {
+          ordersByTable[tableKey] = [];
+        }
+        ordersByTable[tableKey].push(order);
+      });
+
+      Object.keys(ordersByTable)
+        .sort()
+        .forEach((tableKey) => {
+          const tableOrders = ordersByTable[tableKey];
+          const rows = tableOrders.map((order) => {
+            const itemsList = order.items
+              .map((i: any) => `${i.quantity}x ${i.name}`)
+              .join(", ");
+            const subtotal =
+              order.subtotal ||
+              order.total - (order.tax || 0) + (order.discount || 0) ||
+              0;
+
+            return {
+              "Order Time": format(new Date(order.date), "yyyy-MM-dd HH:mm:ss"),
+              "Order ID": order.orderNumber || order.id.slice(0, 8),
+              "Customer Name": order.userName || "Guest",
+              "Customer Phone": order.userPhone || "",
+              "Menu Items": itemsList,
+              Subtotal: subtotal,
+              Tax: order.tax || 0,
+              "Discount / Adjustment": order.discount || 0,
+              "Total Bill (Admin)": order.total,
+              "Payment Method": order.paymentMethod || "N/A",
+              Status: order.status,
+              "Payment Status": order.paymentStatus,
+            };
+          });
+          const ws = XLSX.utils.json_to_sheet(rows);
+          XLSX.utils.book_append_sheet(wb, ws, `Table ${tableKey}`);
+        });
+
+      const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // 2. Send to Backend
+      const formData = new FormData();
+      formData.append(
+        "file",
+        blob,
+        `Orders_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`
+      );
+      formData.append("reportType", "orders");
+      const dateRangeStr = dateRange?.from
+        ? `${format(dateRange.from, "dd/MM/yyyy")} - ${
+            dateRange.to
+              ? format(dateRange.to, "dd/MM/yyyy")
+              : format(dateRange.from, "dd/MM/yyyy")
+          }`
+        : "All Time";
+      formData.append("dateRange", dateRangeStr);
+
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/email/send-report`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to send email");
+      }
+
+      toast({
+        title: "Email Sent",
+        description: "Orders report sent to CA successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to send CA email:", error);
+      toast({
+        variant: "destructive",
+        title: "Sending Failed",
+        description: (error as Error).message || "Could not send report to CA.",
+      });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -720,6 +834,22 @@ export function RecentOrders() {
                 >
                   <Download className="mr-2 h-3 w-3" />
                   Excel
+                </Button>
+
+                {/* Send to CA Button */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSendToCA}
+                  disabled={isSendingEmail}
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-700 ml-2 text-white"
+                >
+                  {isSendingEmail ? (
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Mail className="mr-2 h-3 w-3" />
+                  )}
+                  Send to CA
                 </Button>
               </div>
             </div>

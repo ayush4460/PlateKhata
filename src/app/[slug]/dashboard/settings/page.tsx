@@ -32,6 +32,7 @@ export default function SettingsPage() {
     contactNumber,
     fssaiLicNo,
     gstin,
+    caEmail,
     updateSettings,
     isCartLoading,
   } = useCart();
@@ -50,6 +51,7 @@ export default function SettingsPage() {
   const [localContactNumber, setLocalContactNumber] = useState("");
   const [localFssai, setLocalFssai] = useState("");
   const [localGstin, setLocalGstin] = useState("");
+  const [localCaEmail, setLocalCaEmail] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -69,6 +71,7 @@ export default function SettingsPage() {
       setLocalContactNumber(contactNumber || "");
       setLocalFssai(fssaiLicNo || "");
       setLocalGstin(gstin || "");
+      setLocalCaEmail(caEmail || "");
     }
   }, [
     isCartLoading,
@@ -113,7 +116,8 @@ export default function SettingsPage() {
         localTagline.trim(),
         localContactNumber.trim(),
         localFssai.trim(),
-        localGstin.trim()
+        localGstin.trim(),
+        localCaEmail.trim()
       );
       toast({
         title: "Settings Saved",
@@ -236,6 +240,20 @@ export default function SettingsPage() {
                 onChange={(e) => setLocalFssai(e.target.value)}
                 placeholder="FSSAI License Number"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="caEmail">CA Email Address</Label>
+              <Input
+                id="caEmail"
+                type="email"
+                value={localCaEmail}
+                onChange={(e) => setLocalCaEmail(e.target.value)}
+                placeholder="ca@firm.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Start/End of Day reports will be sent to this email.
+              </p>
             </div>
           </CardContent>
         </Card>
