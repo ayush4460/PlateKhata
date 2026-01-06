@@ -6,7 +6,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 
 export const metadata: Metadata = {
-  title: "MunchMate",
+  title: "PlateKhata",
   description: "Order food seamlessly from your table.",
 };
 
