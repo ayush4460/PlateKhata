@@ -38,6 +38,8 @@ export default function QrGeneratorPage() {
     }
   }, []);
 
+  const [isAdding, setIsAdding] = useState(false);
+
   const handleAddTable = async () => {
     const tableNumStr = newTableNumber.trim();
     const capacityNum = parseInt(newTableCapacity, 10);
@@ -60,11 +62,16 @@ export default function QrGeneratorPage() {
       return;
     }
 
-    const success = await createTable(tableNumStr, capacityNum);
+    try {
+      setIsAdding(true);
+      const success = await createTable(tableNumStr, capacityNum);
 
-    if (success) {
-      setNewTableNumber("");
-      setNewTableCapacity("");
+      if (success) {
+        setNewTableNumber("");
+        setNewTableCapacity("");
+      }
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -96,7 +103,9 @@ export default function QrGeneratorPage() {
   if (!baseUrl) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p>Loading QR Codes...</p>
+        <p className="text-muted-foreground animate-pulse">
+          Loading QR Codes...
+        </p>
       </div>
     );
   }
@@ -105,74 +114,76 @@ export default function QrGeneratorPage() {
   const displayTagline = restaurantTagline || "Scan, Order, Enjoy!";
 
   return (
-    <div className="grid auto-rows-max items-start gap-4 md:gap-8 print:gap-4">
-      <div className="print:hidden grid gap-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">QR Code Generator</h1>
-          <Button onClick={handlePrint}>Print QR Codes</Button>
+    <div className="space-y-6 p-4 md:p-8 lg:p-10 max-w-7xl mx-auto">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden text-center sm:text-left">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-light tracking-tight">
+            QR Generator
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">
+            Manage tables and print QR codes.
+          </p>
         </div>
-        <div className="grid md:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Add New Table</CardTitle>
-              <CardDescription>
-                Generate a QR code for a new table.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-table">Table Number</Label>
-                <Input
-                  id="new-table"
-                  type="text"
-                  placeholder="e.g., A5 or 12"
-                  value={newTableNumber}
-                  onChange={(e) => setNewTableNumber(e.target.value)}
-                />
-              </div>
+        <Button
+          onClick={handlePrint}
+          variant="outline"
+          className="print:hidden w-full sm:w-auto"
+        >
+          Print QR Codes
+        </Button>
+      </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="new-capacity">Capacity</Label>
-                <Input
-                  id="new-capacity"
-                  type="number"
-                  placeholder="e.g., 4"
-                  value={newTableCapacity}
-                  onChange={(e) => setNewTableCapacity(e.target.value)}
-                  min="1"
-                  max="20"
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleAddTable}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Table
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage Instructions</CardTitle>
-              <CardDescription>
-                Configure restaurant details in <strong>Settings</strong> to
-                update the cards.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                The restaurant name "<strong>{displayRestaurantName}</strong>"
-                and tagline will appear on all printed QR codes. Visit the
-                Settings page to update these details.
-              </p>
-            </CardContent>
-          </Card>
+      {/* Add Table Section - Minimal Inline Form */}
+      <div className="print:hidden bg-card/50 border border-border/40 rounded-xl p-4 md:p-6 shadow-sm backdrop-blur-sm">
+        <div className="flex flex-col md:flex-row items-end gap-4">
+          <div className="grid w-full gap-2">
+            <Label
+              htmlFor="new-table"
+              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+            >
+              Table Number
+            </Label>
+            <Input
+              id="new-table"
+              type="text"
+              placeholder="e.g. 5"
+              value={newTableNumber}
+              onChange={(e) => setNewTableNumber(e.target.value)}
+              className="bg-background/50 border-border/50 focus:border-primary/50 transition-colors h-11"
+            />
+          </div>
+          <div className="grid w-full gap-2">
+            <Label
+              htmlFor="new-capacity"
+              className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+            >
+              Capacity
+            </Label>
+            <Input
+              id="new-capacity"
+              type="number"
+              placeholder="e.g. 4"
+              value={newTableCapacity}
+              onChange={(e) => setNewTableCapacity(e.target.value)}
+              min="1"
+              max="20"
+              className="bg-background/50 border-border/50 focus:border-primary/50 transition-colors h-11"
+            />
+          </div>
+          <Button
+            onClick={handleAddTable}
+            disabled={isAdding}
+            className="h-11 w-full md:w-auto min-w-[140px] font-medium"
+          >
+            {isAdding ? "Adding..." : "Add Table"}
+          </Button>
         </div>
       </div>
 
+      {/* QR Grid */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 print:grid-cols-3 print:gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 print:grid-cols-3 print:gap-8"
         id="qr-code-grid"
       >
         {tableStatuses
@@ -183,67 +194,66 @@ export default function QrGeneratorPage() {
             return a.tableNumber.localeCompare(b.tableNumber);
           })
           .map((table) => (
-            <Card
+            <div
               key={table.id}
-              className="text-center break-inside-avoid print:border-2 print:shadow-none"
+              className="group relative flex flex-col items-center p-8 bg-card rounded-2xl border border-border/40 shadow-sm hover:shadow-md transition-all duration-300 hover:border-border/80 break-inside-avoid print:border-2 print:shadow-none print:p-4"
             >
-              <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
-                <div className="flex w-full items-start justify-between print:hidden">
-                  <div className="text-left">
-                    <h2 className="text-xl font-bold">
-                      {displayRestaurantName}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {displayTagline}
-                    </p>
+              {/* Delete Button - Absolute Top Right */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:bg-red-50 hover:text-red-600 print:hidden h-8 w-8"
+                onClick={() => handleDeleteTable(table.id)}
+                aria-label="Delete table"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+
+              {/* Print Context Header */}
+              <div className="text-center hidden print:block mb-4">
+                <h2 className="text-lg font-bold text-black">
+                  {displayRestaurantName}
+                </h2>
+                <p className="text-xs text-gray-500">{displayTagline}</p>
+              </div>
+
+              {/* QR Code */}
+              <div className="relative w-40 h-40 mb-6 p-2 bg-white rounded-xl shadow-sm border border-gray-100 qr-image-container flex items-center justify-center">
+                {table.qrCodeUrl ? (
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={table.qrCodeUrl}
+                      alt={`QR Code for Table ${table.tableNumber}`}
+                      fill
+                      className="object-contain" // Use object-contain to ensure the whole QR is visible and not cropped
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => handleDeleteTable(table.id)}
-                    aria-label="Delete table"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-[10px] rounded-lg">
+                    Generating...
+                  </div>
+                )}
+              </div>
 
-                <div className="text-center hidden print:block">
-                  <h2 className="text-xl font-bold">{displayRestaurantName}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {displayTagline}
-                  </p>
-                </div>
+              {/* Table Info */}
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest print:text-black">
+                  Table
+                </p>
+                <p className="text-4xl font-light text-foreground print:text-black print:font-bold">
+                  {table.tableNumber}
+                </p>
+              </div>
 
-                <div className="p-4 bg-white rounded-lg border flex justify-center qr-image-container">
-                  {table.qrCodeUrl ? (
-                    <div className="relative w-[150px] h-[150px]">
-                      <Image
-                        src={table.qrCodeUrl}
-                        alt={`QR Code for Table ${table.tableNumber}`}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-[150px] h-[150px] flex items-center justify-center bg-muted text-muted-foreground text-xs">
-                      QR Not Available
-                    </div>
-                  )}
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold">
-                    Table {table.tableNumber}
-                  </p>
-                  <p className="text-xs text-muted-foreground break-all print:hidden">
-                    Scan to Order
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <UtensilsCrossed className="h-3 w-3" />
-                  <span>Powered by {displayRestaurantName}</span>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="mt-4 flex items-center gap-1.5 text-[10px] text-muted-foreground print:hidden">
+                <UtensilsCrossed className="h-3 w-3" />
+                <span>{displayRestaurantName}</span>
+              </div>
+              <p className="hidden print:block text-xs mt-2 text-gray-500">
+                Scan to Order
+              </p>
+            </div>
           ))}
       </div>
       <style jsx global>{`
@@ -260,16 +270,19 @@ export default function QrGeneratorPage() {
             left: 0;
             top: 0;
             width: 100%;
-            gap: 1rem;
+            display: grid;
+            padding: 2rem;
+            background: white;
           }
-          .qr-image-container img {
-            visibility: visible !important;
+          /* Ensure images print correctly */
+          img {
             -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
         @page {
           size: A4;
-          margin: 1cm;
+          margin: 0;
         }
       `}</style>
     </div>
