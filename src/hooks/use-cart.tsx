@@ -152,7 +152,7 @@ interface CartContextType {
   deleteTable: (tableId: number) => Promise<boolean>;
   clearTableSession: (tableId: number) => Promise<void>;
   moveTable: (sourceTableId: number, targetTableId: number) => Promise<boolean>;
-  refreshTables: () => Promise<void>;
+  refreshTables: (silent?: boolean) => Promise<void>;
   analyticsPeriod: AnalyticsPeriod;
   setAnalyticsPeriod: (period: AnalyticsPeriod) => void;
   connectSocket: () => void;
@@ -643,7 +643,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     return [];
   };
 
-  const fetchTables = useCallback(async () => {
+  const fetchTables = useCallback(async (silent = false) => {
     const role = getStoredRole();
     if (role !== "admin") {
       setBackendTables([]);
@@ -651,7 +651,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    setIsTablesLoading(true);
+    if (!silent) setIsTablesLoading(true);
     try {
       const res = await fetch(`${API_BASE}/tables`, {
         method: "GET",
@@ -668,7 +668,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       console.error("[DEBUG] Error fetchTables:", error);
       setBackendTables([]);
     } finally {
-      setIsTablesLoading(false);
+      if (!silent) setIsTablesLoading(false);
     }
   }, []);
 
@@ -1028,7 +1028,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       fetchRelevantOrders();
       if (hasAuthToken()) {
         fetchKitchenOrders();
-        fetchTables(); // Refresh table statuses (cards)
+        fetchTables(true); // Silent Refresh
         fetchActiveOrders(); // Refresh active orders for accurate table status
       }
     };
@@ -1049,7 +1049,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       );
 
       if (hasAuthToken()) {
-        fetchTables(); // Refresh table statuses (cards)
+        fetchTables(true); // Silent Refresh for table card updates
       }
     };
 
@@ -1999,7 +1999,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           throw new Error(err.message || "Failed to create table");
         }
 
-        await fetchTables();
+        await fetchTables(true);
         toast({
           title: "Table Created",
           description: `Table ${tableNumStr} added.`,
@@ -2041,7 +2041,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           throw new Error((err as any).message || "Failed to delete table");
         }
 
-        await fetchTables();
+        await fetchTables(true);
         toast({
           title: "Table Deleted",
           description: "Table, QR code, and active orders were removed.",
@@ -2075,7 +2075,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           title: "Table Cleared",
           description: "Session expired and table is free.",
         });
-        await fetchTables();
+        await fetchTables(true);
         await fetchActiveOrders();
       } catch (e) {
         toast({
@@ -2341,10 +2341,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [fetchTables, fetchActiveOrders]
   );
 
-  const refreshTables = useCallback(async () => {
-    await fetchTables();
-    await fetchActiveOrders();
-  }, [fetchTables, fetchActiveOrders]);
+  const refreshTables = useCallback(
+    async (silent = false) => {
+      await fetchTables(silent);
+      await fetchActiveOrders();
+    },
+    [fetchTables, fetchActiveOrders]
+  );
 
   const value = {
     cart,

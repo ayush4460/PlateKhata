@@ -915,7 +915,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-0 bg-white/40 dark:bg-slate-900/30 transition-colors">
-              {isTablesLoading || (!activeTable && !pastOrders.length) ? (
+              {isTablesLoading && !activeTable && !pastOrders.length ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
                 </div>
