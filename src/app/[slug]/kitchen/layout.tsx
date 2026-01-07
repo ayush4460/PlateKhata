@@ -101,7 +101,7 @@ export default function KitchenLayout({
         <div className="flex items-center gap-2 font-semibold text-lg">
           <UtensilsCrossed className="h-6 w-6 text-primary" />
           <span className="font-headline">
-            {restaurantName || "Axios"} Kitchen
+            {restaurantName || "PlateKhata"} Kitchen
           </span>
         </div>
       </header>

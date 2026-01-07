@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'restaurant-backend-w7j5.onrender.com',
+        hostname: 'platekhata-api.onrender.com',
         port: '',
         pathname: '/',
       },
