@@ -156,7 +156,10 @@ export default function MenuEditorPage() {
               : "non_veg"),
           preparationTime: o.preparation_time ?? o.preparationTime ?? null,
           hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels),
-          customizationNames: o.customization_names ?? [], // Map from backend
+          customizationNames:
+            o.customization_names ?? o.customizationNames ?? [],
+          customizationDetails:
+            o.customization_details ?? o.customizationDetails ?? [], // Map detailed info
         }));
         if (!cancelled) {
           setLocalMenuItems(mapped);
@@ -815,16 +818,23 @@ export default function MenuEditorPage() {
                       {item.isVegetarian ? "Veg" : "Non-Veg"}
                     </TableCell>
                     <TableCell>
-                      {item.customizationNames &&
-                      item.customizationNames.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {item.customizationNames.map((name, i) => (
-                            <span
+                      {item.customizationDetails &&
+                      item.customizationDetails.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                          {item.customizationDetails.map((group, i) => (
+                            <div
                               key={i}
-                              className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                              className="flex flex-col gap-0.5 text-xs"
                             >
-                              {name}
-                            </span>
+                              <span className="font-semibold text-foreground/90">
+                                {group.group_name}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {group.options
+                                  .map((opt) => opt.name)
+                                  .join(", ")}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       ) : (

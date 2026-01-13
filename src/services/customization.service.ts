@@ -17,7 +17,7 @@ export const CustomizationService = {
     // The backend `createGroup` returns `group_id`.
     // My interface says `id`. I should map it.
     
-    return data.map((item: any) => ({
+    return (data as any[]).map((item: any) => ({
         ...item,
         id: item.group_id,
         options: item.options?.map((opt: any) => ({
@@ -30,7 +30,7 @@ export const CustomizationService = {
   create: async (payload: CreateCustomizationGroupDTO): Promise<CustomizationGroup> => {
     const { data } = await ApiClient.post("/customizations", payload);
     console.log("Create group response:", data);
-    const created = data; // ApiResponse.created puts result in data. The destructured data IS that result? 
+    const created = data as any; // ApiResponse.created puts result in data. The destructured data IS that result? 
     // Wait. ApiClient returns { success, message, data }. 
     // const { data } = await ApiClient... extracts the inner data.
     // So 'data' here is the group object.
@@ -46,7 +46,7 @@ export const CustomizationService = {
 
   update: async (id: number, payload: UpdateCustomizationGroupDTO): Promise<CustomizationGroup> => {
     const { data } = await ApiClient.put(`/customizations/${id}`, payload);
-    const updated = data;
+    const updated = data as any;
     return {
         ...updated,
         id: updated.group_id,
@@ -61,7 +61,7 @@ export const CustomizationService = {
   // Item Assignment
   getForItem: async (itemId: number): Promise<any[]> => {
       const { data } = await ApiClient.get(`/customizations/item/${itemId}`);
-      return data;
+      return data as any[];
   },
 
   assignToItem: async (payload: { itemId: number, groupId: number, optionsOverrides: any[] }): Promise<void> => {
