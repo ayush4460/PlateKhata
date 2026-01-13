@@ -133,21 +133,35 @@ function SessionDetails({
             {allItems.map((item: any, idx: number) => (
               <TableRow key={`${item.orderId}-${idx}`}>
                 <TableCell className="font-medium">
-                  {item.name}
-                  {item.spiceLevel && (
-                    <Badge
-                      variant="outline"
-                      className="ml-2 text-xs py-0 h-4 border-orange-200 text-orange-600 bg-orange-50"
-                    >
-                      {item.spiceLevel}
-                    </Badge>
-                  )}
-                  {item.orderType === "addon" && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      (Add-on #
-                      {item.orderNumber?.slice(-4) || item.orderId.slice(-4)})
+                  <div className="flex flex-col">
+                    <span className="flex items-center flex-wrap gap-2">
+                      {item.name}
+                      {item.spiceLevel && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs py-0 h-4 border-orange-200 text-orange-600 bg-orange-50"
+                        >
+                          {item.spiceLevel}
+                        </Badge>
+                      )}
+                      {(item.customizations || []).length > 0 &&
+                        (item.customizations as any[]).map((c, i) => (
+                          <Badge
+                            key={i}
+                            variant="outline"
+                            className="text-xs py-0 h-4 border-slate-200 text-slate-600 bg-slate-50"
+                          >
+                            {c.name}
+                          </Badge>
+                        ))}
                     </span>
-                  )}
+                    {item.orderType === "addon" && (
+                      <span className="text-[10px] text-muted-foreground">
+                        (Add-on #
+                        {item.orderNumber?.slice(-4) || item.orderId.slice(-4)})
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-center">
                   <Badge

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { MenuContent } from "@/components/menu/menu-content";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,14 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
   const [localCustomerName, setLocalCustomerName] = useState("");
   const [localCustomerPhone, setLocalCustomerPhone] = useState("");
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingKey, setProcessingKey] = useState<string | null>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<
+    Record<string, number>
+  >({});
+
+  const updateTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+  const sessionActiveRef = useRef(false);
 
   useEffect(() => {
     if (isTablesLoading || !tableStatuses || tableStatuses.length === 0) return;
@@ -141,13 +149,150 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     );
   }, [combinedOrders, activeTable, tableId]);
 
+  // Sync Session Active Ref
+  useEffect(() => {
+    if (
+      pastOrders.length > 0 ||
+      (activeTable && activeTable.status === "Occupied")
+    ) {
+      sessionActiveRef.current = true;
+    } else {
+      // Only reset if we are sure?
+      // If we just navigated here, it might be false.
+      // But if we have optimistic updates pending, keep it true?
+      // Actually, safer to only set to TRUE when confirmed.
+      // But we rely on it being true during rapid add.
+      // If pastOrders becomes 0 (e.g. cancelled all), we should reset?
+      // Let's trust the Ref's optimistic set, but allow sync to override if backend confirms empty.
+      if (
+        pastOrders.length === 0 &&
+        activeTable &&
+        activeTable.status !== "Occupied"
+      ) {
+        sessionActiveRef.current = false;
+      }
+    }
+  }, [pastOrders.length, activeTable]);
+
+  // --- Aggregated Items Logic ---
+  const aggregatedItems = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        itemId: string;
+        name: string;
+        quantity: number;
+        price: number;
+        totalPrice: number;
+        statusWeights: Record<string, number>;
+        paidCount: number;
+        unpaidAmount: number;
+        customizations?: any[];
+        spiceLevel?: string;
+        specialInstructions?: string | null;
+        uniqueKey: string; // Ensure interface matches
+      }
+    >();
+
+    pastOrders.forEach((order) => {
+      // Filter out invalid statuses
+      if (order.status === "Cancelled") return;
+
+      order.items.forEach((item) => {
+        // Generate a unique key based on ID + Customizations + Spice Level
+        // Sort customizations to ensure consistency
+        const custLabels = item.customizations
+          ? item.customizations
+              .map((c) => c.name)
+              .sort()
+              .join(", ")
+          : "";
+        const uniqueKey = `${item.id}-${item.spiceLevel || ""}-${custLabels}`;
+
+        let existing = map.get(uniqueKey);
+        const isPaid = order.paymentStatus === "Approved";
+
+        if (!existing) {
+          existing = {
+            itemId: item.id,
+            name: item.name,
+            quantity: 0,
+            price: item.price,
+            totalPrice: 0,
+            statusWeights: {},
+            paidCount: 0,
+            unpaidAmount: 0,
+            customizations: item.customizations || [], // Store for display
+            spiceLevel: item.spiceLevel || undefined,
+            specialInstructions: (item as any).specialInstructions || null,
+            uniqueKey: uniqueKey,
+          };
+          map.set(uniqueKey, existing);
+        }
+
+        existing!.quantity += item.quantity;
+        // Total price calculation should rely on the price stored in the item (which includes customizations)
+        existing!.totalPrice += item.price * item.quantity;
+
+        // Track status
+        const status = order.status || "Unknown";
+        existing!.statusWeights[status] =
+          (existing!.statusWeights[status] || 0) + item.quantity;
+
+        if (isPaid) {
+          existing!.paidCount += item.quantity;
+        } else {
+          existing!.unpaidAmount += item.price * item.quantity;
+        }
+      });
+    });
+
+    // Apply Optimistic Updates
+    map.forEach((existing, key) => {
+      if (optimisticUpdates[key] !== undefined) {
+        // Override with optimistic quantity
+        const optQty = optimisticUpdates[key];
+        existing.quantity = optQty;
+        existing.totalPrice = existing.price * optQty;
+
+        // Recalculate unpaid
+        // Assuming paid items are usually the "first" items, or we just subtract paidCount
+        const safePaid = Math.min(existing.paidCount, optQty);
+        existing.paidCount = safePaid;
+        existing.unpaidAmount = existing.totalPrice - existing.price * safePaid;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [pastOrders, optimisticUpdates]);
+
   // --- Sync Customer Details from Backend (Table Status) ---
   useEffect(() => {
     if (activeTable) {
-      // If backend provides details, load them
-      // We check if local state is empty to avoid overwriting user typing
-      const backendName = activeTable.customerName || "";
-      const backendPhone = activeTable.customerPhone || "";
+      // If backend provides details, load them BUT only if table is occupied
+      // If table is Empty/Available, we want to show blank inputs for new customer
+      const isAvailable = activeTable.status === "Empty";
+      const backendName = isAvailable ? "" : activeTable.customerName || "";
+      const backendPhone = isAvailable ? "" : activeTable.customerPhone || "";
+
+      // Reactive Clear: If table became available and local state still holds the old backend data, clear it.
+      if (isAvailable && isDataLoaded) {
+        // We check against the RAW backend data (activeTable.customerName), not backendName (which is "")
+        if (
+          activeTable.customerName &&
+          localCustomerName === activeTable.customerName
+        ) {
+          setLocalCustomerName("");
+        }
+        if (
+          activeTable.customerPhone &&
+          localCustomerPhone === activeTable.customerPhone
+        ) {
+          setLocalCustomerPhone("");
+        }
+      }
 
       // Only set if we haven't set it yet, or if it matches what we expect from backend
       // But we want to allow user to edit.
@@ -176,6 +321,18 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
         localCustomerName !== activeTable.customerName ||
         localCustomerPhone !== activeTable.customerPhone
       ) {
+        // PREVENT AUTO-WIPE of DB if table is Available and we just defaulted to empty
+        // User requested: "keep in database but wipe frontend"
+        if (
+          activeTable.status === "Empty" &&
+          localCustomerName === "" &&
+          localCustomerPhone === "" &&
+          (activeTable.customerName || activeTable.customerPhone)
+        ) {
+          // Do not sync the "blanking" to backend
+          return;
+        }
+
         try {
           const token = localStorage.getItem("accessToken");
           const headers: Record<string, string> = {
@@ -236,90 +393,36 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     localCustomerPhone,
   ]);
 
-  const totalUnpaidAmount = pastOrders.reduce((sum, order) => {
-    if (order.paymentStatus !== "Approved" && order.status !== "Cancelled") {
-      return sum + order.total;
-    }
-    return sum;
-  }, 0);
-
-  const totalPaidAmount = pastOrders.reduce((sum, order) => {
-    if (order.paymentStatus === "Approved" && order.status !== "Cancelled") {
-      return sum + order.total;
-    }
-    return sum;
-  }, 0);
-
+  const totalUnpaidAmount = useMemo(
+    () => aggregatedItems.reduce((sum, item) => sum + item.unpaidAmount, 0),
+    [aggregatedItems]
+  );
+  const totalPaidAmount = useMemo(
+    () =>
+      aggregatedItems.reduce(
+        (sum, item) => sum + item.price * item.paidCount,
+        0
+      ),
+    [aggregatedItems]
+  );
   const totalBillAmount = totalPaidAmount + totalUnpaidAmount;
 
-  // --- Aggregated Items Logic ---
-  const aggregatedItems = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        itemId: string;
-        name: string;
-        quantity: number;
-        price: number;
-        totalPrice: number;
-        statusWeights: Record<string, number>;
-        paidCount: number;
-        unpaidAmount: number;
-      }
-    >();
-
-    pastOrders.forEach((order) => {
-      // Filter out invalid statuses
-      if (order.status === "Cancelled") return;
-
-      order.items.forEach((item) => {
-        let existing = map.get(item.id);
-        const isPaid = order.paymentStatus === "Approved";
-
-        if (!existing) {
-          existing = {
-            itemId: item.id,
-            name: item.name,
-            quantity: 0,
-            price: item.price,
-            totalPrice: 0,
-            statusWeights: {},
-            paidCount: 0,
-            unpaidAmount: 0,
-          };
-          map.set(item.id, existing);
-        }
-
-        existing.quantity += item.quantity;
-        existing.totalPrice += item.price * item.quantity;
-
-        // Track status
-        const status = order.status || "Unknown";
-        existing.statusWeights[status] =
-          (existing.statusWeights[status] || 0) + item.quantity;
-
-        if (isPaid) {
-          existing.paidCount += item.quantity;
-        } else {
-          existing.unpaidAmount += item.price * item.quantity;
-        }
-      });
-    });
-
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-  }, [pastOrders]);
-
-  const [isProcessing, setIsProcessing] = useState(false);
-
   // --- Instant Order Handlers ---
+  // ... (keeping existing handlers - assuming they handle 'itemId' correctly.
+  // NOTE: 'itemId' in handleInstantRemove refers to menu item ID.
+  // If we have split rows for same item ID, removing by ID might be ambiguous if we don't pass unique characteristics.
+  // But for now, user asked for display fix. Handling granular removal of specific variants requires deeper API changes.
+  // The existing 'handleInstantRemove' logic finds "recent order with this item ID".
+  // It might remove the WRONG variant if multiple exist.
+  // However, I will focus on the DISPLAY first as requested.)
 
   const handleInstantAdd = async (
     item: MenuItem & {
       spiceLevel?: string;
       specialInstructions?: string;
       quantity?: number;
+      customizations?: any[];
+      uniqueKey?: string; // Passed for optimistic updates
     }
   ) => {
     if (!activeTable) {
@@ -327,6 +430,15 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       return;
     }
     setIsProcessing(true);
+    // Optimistic Update: If uniqueKey is provided (from existing aggregated item)
+    if (item.uniqueKey) {
+      setProcessingKey(item.uniqueKey);
+      setOptimisticUpdates((prev) => ({
+        ...prev,
+        [item.uniqueKey!]:
+          (prev[item.uniqueKey!] || (item as any).currentQty || 0) + 1,
+      }));
+    }
 
     try {
       const payload = {
@@ -337,13 +449,17 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
             quantity: item.quantity || 1,
             specialInstructions: item.specialInstructions || null,
             spiceLevel: item.spiceLevel || null,
+            customizations: item.customizations || undefined,
           },
         ],
         customerName: localCustomerName || "",
         customerPhone: localCustomerPhone || "",
         restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
-        orderType: pastOrders.length > 0 ? "addon" : "regular",
+        orderType: sessionActiveRef.current ? "addon" : "regular",
       };
+
+      // Optimistically mark session as active so next rapid click uses "addon"
+      sessionActiveRef.current = true;
 
       const token = localStorage.getItem("accessToken");
       const headers: Record<string, string> = {
@@ -368,179 +484,247 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       });
 
       if (activeTable) {
-        await fetchRelevantOrders(undefined, String(activeTable.id)); // Refresh orders
+        await fetchRelevantOrders(undefined, String(activeTable.id));
       } else {
         await fetchRelevantOrders();
       }
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Failed to add item" });
+      // Revert optimistic
+      if (item.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[item.uniqueKey!];
+          return n;
+        });
+      }
     } finally {
       setIsProcessing(false);
+      setProcessingKey(null);
+      // Clear optimistic update after sync
+      if (item.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[item.uniqueKey!];
+          return n;
+        });
+      }
     }
   };
 
-  const handleDirectQuantityChange = async (
-    itemId: string,
-    newQuantity: number
-  ) => {
-    if (isNaN(newQuantity) || newQuantity < 0) return;
+  const handleDirectQuantityChange = async (itemObj: any, newQty: number) => {
+    // Helper to generate key (must match aggregatedItems logic)
+    const getUKey = (i: any) => {
+      const custLabels = i.customizations
+        ? i.customizations
+            .map((c: any) => c.name)
+            .sort()
+            .join(", ")
+        : "";
+      return `${i.id}-${i.spiceLevel || ""}-${custLabels}`;
+    };
 
-    // Find current aggregated item
-    const currentItem = aggregatedItems.find((i) => i.itemId === itemId);
-    if (!currentItem) return;
+    // Calculate REAL quantity from pastOrders (Source of Truth)
+    const currentQty = pastOrders
+      .filter((o) => o.status !== "Cancelled")
+      .reduce((sum, o) => {
+        const match = o.items.find(
+          (i: any) => getUKey(i) === itemObj.uniqueKey
+        );
+        return sum + (match ? match.quantity : 0);
+      }, 0);
 
-    const currentQty = currentItem.quantity;
-    const diff = newQuantity - currentQty;
+    const diff = newQty - currentQty;
 
-    if (diff === 0) return;
+    // console.log(`[Debounce Exec] Real: ${currentQty}, Target: ${newQty}, Diff: ${diff}`);
+
+    if (diff === 0) {
+      // Just clear optimistic if any
+      setOptimisticUpdates((prev) => {
+        const n = { ...prev };
+        delete n[itemObj.uniqueKey];
+        return n;
+      });
+      return;
+    }
 
     setIsProcessing(true);
+    setProcessingKey(itemObj.uniqueKey);
+    // Note: Optimistic State is likely ALREADY set by the debouncer.
+    // We don't need to set it here again, but keeping it in sync is fine.
+
     try {
       if (diff > 0) {
-        // Need to ADD items
-        // Find menu item details
-        const fullItem = menuItems.find((m) => String(m.id) === String(itemId));
-        if (!fullItem) {
-          console.error("Could not find item details for addition");
-          return;
+        // Simple Add
+        const fullItem = menuItems.find(
+          (m) => String(m.id) === String(itemObj.itemId)
+        );
+        if (fullItem && activeTable) {
+          const payload = {
+            tableId: activeTable.id,
+            items: [
+              {
+                itemId: parseInt(fullItem.id, 10) || fullItem.id,
+                quantity: diff,
+                specialInstructions: itemObj.specialInstructions,
+                spiceLevel: itemObj.spiceLevel,
+                customizations: itemObj.customizations,
+              },
+            ],
+            customerName: localCustomerName || "",
+            customerPhone: localCustomerPhone || "",
+            restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
+            orderType: sessionActiveRef.current ? "addon" : "regular",
+          };
+
+          // Optimistically mark session as active
+          sessionActiveRef.current = true;
+          const token = localStorage.getItem("accessToken");
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          await fetch(`${API_BASE}/orders`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          });
+          toast({ title: "Quantity Updated", description: "Added items." });
         }
-
-        // Loop to add multiple times? Or bulk add?
-        // Existing endpoint takes array of items. We can send one request with quantity = diff.
-        // handleInstantAdd takes 1 item. Let's make a specialized handler or loop.
-        // PROPER OPTIMIZATION: Send 1 request with quantity = diff
-
-        if (!activeTable) return;
-
-        const payload = {
-          tableId: activeTable.id,
-          items: [
-            {
-              itemId: parseInt(fullItem.id, 10) || fullItem.id,
-              quantity: diff, // Helper: Add 'diff' amount
-              specialInstructions: null,
-              spiceLevel: null,
-            },
-          ],
-          customerName: localCustomerName || "Admin",
-          customerPhone: localCustomerPhone || "0000000000",
-          restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
-          orderType: pastOrders.length > 0 ? "addon" : "regular",
-        };
-
-        const token = localStorage.getItem("accessToken");
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch(`${API_BASE}/orders`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) throw new Error("Failed to update quantity");
-        toast({
-          title: "Quantity Updated",
-          description: `Added ${diff}x ${fullItem.name}`,
-        });
       } else {
-        // Need to REMOVE items (diff is negative)
-        // cancellations must be done order by order usually.
-        // But we need to remove abs(diff) items.
-        // Logic: Find recent cancelable orders and cancel them until we satisfy the count.
-        // Problem: If an order has 5 items and we want to remove 2, we might not be able to partial cancel effortlessly if backend doesn't support it.
-        // Assumption: Backend only supports FULL order cancellation?
-        // Previous code assumed we find an order and cancel it.
-        // If we have 5 separate orders of 1 item each, we can cancel 2 of them.
-        // If we have 1 order of 5 items, can we decrement? 'cancelOrder' takes orderId.
-        // If backend doesn't support partial, we can't implement "change 5 to 3" for a single 5-item order without cancelling and re-ordering 3.
+        // Decrease
+        const countToRemove = Math.abs(diff);
+        let removedSoFar = 0;
 
-        // For now, let's implement iterative removal of "cancelable" instances.
-        // We will loop abs(diff) times calling the removal logic? No, that's slow.
-        // We will find N orders to cancel.
-
-        let countToRemove = Math.abs(diff);
-        let removed = 0;
-
-        // Get all cancelable orders with this item, sorted by recent
+        // Find match candidates exactly like handleInstantRemove
         const candidates = pastOrders
           .filter(
             (o) =>
-              o.items.some((i) => i.id === itemId) &&
-              !["Served", "Completed", "Cancelled"].includes(o.status)
+              o.items.some((i: any) => {
+                if (i.id !== itemObj.itemId) return false;
+                // Compare Spice
+                if ((itemObj.spiceLevel || null) !== (i.spiceLevel || null))
+                  return false;
+                // Compare Customizations
+                const uCusts = itemObj.customizations || [];
+                const oCusts = i.customizations || [];
+                if (uCusts.length !== oCusts.length) return false;
+                return uCusts.every((c1: any) =>
+                  oCusts.some(
+                    (c2: any) =>
+                      (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                      (c1.id && c2.id && c1.id === c2.id) ||
+                      c1.name === c2.name
+                  )
+                );
+              }) && !["Served", "Completed", "Cancelled"].includes(o.status)
           )
           .sort((a, b) => b.date - a.date);
 
-        // We need to count how many "units" of the item each order has.
-        // And cancel orders until we hit the count.
-        // Warning: Cancelling an order removes ALL items in it.
-
         for (const order of candidates) {
-          if (removed >= countToRemove) break;
+          if (removedSoFar >= countToRemove) break;
 
-          const itemInOrder = order.items.find((i) => i.id === itemId);
-          const qtyInOrder = itemInOrder ? itemInOrder.quantity : 0;
-
-          // Safety: If this order has mismatched items (other items) or more quantity than we want to remove?
-          // Complex case: Order has 5 items, we want to remove 1.
-          // If we cancel the order, we lose 5. We'd have to re-order 4.
-          // This logic is getting complex for "bulk update".
-
-          // SIMPLIFIED APPROACH: Only cancel orders where we can cleaner do so, or warn user.
-          // For direct input "decrease", it implies "smart adjustment".
-
-          // Let's rely on 'cancelOrder' which we know works for full order cancellation.
-          // We will try to find orders to cancel.
-
-          await cancelOrder(order.id);
-          removed += qtyInOrder; // We removed this many
-
-          // If we removed too many (e.g. wanted 2, removed order of 5), we should re-add the difference?
-          // This "re-balancing" auto logic is standard in smart POS.
-          // If removed (5) > countToRemove (2), we need to add back (3).
-          if (removed > countToRemove) {
-            const toAddBack = removed - countToRemove;
-            // Re-add items
-            const fullItem = menuItems.find(
-              (m) => String(m.id) === String(itemId)
+          // Re-find the exact item index or object in this order (to get its Qty)
+          const targetItemInOrder = order.items.find((i: any) => {
+            if (i.id !== itemObj.itemId) return false;
+            // Compare Spice
+            if ((itemObj.spiceLevel || null) !== (i.spiceLevel || null))
+              return false;
+            // Compare Customizations
+            const uCusts = itemObj.customizations || [];
+            const oCusts = i.customizations || [];
+            if (uCusts.length !== oCusts.length) return false;
+            return uCusts.every((c1: any) =>
+              oCusts.some(
+                (c2: any) =>
+                  (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                  (c1.id && c2.id && c1.id === c2.id) ||
+                  c1.name === c2.name
+              )
             );
-            if (fullItem) {
-              if (activeTable) {
-                const payload = {
-                  tableId: activeTable.id,
-                  items: [
-                    {
-                      itemId: parseInt(fullItem.id, 10) || fullItem.id,
-                      quantity: toAddBack,
-                      specialInstructions: null,
-                      spiceLevel: null,
-                    },
-                  ],
-                  customerName: "Admin",
-                  customerPhone: "0000000000",
-                  restaurantId: restaurantId
-                    ? parseInt(restaurantId, 10)
-                    : undefined,
-                  orderType: pastOrders.length > 0 ? "addon" : "regular",
-                };
-                const token = localStorage.getItem("accessToken");
-                const headers: Record<string, string> = {
-                  "Content-Type": "application/json",
-                };
-                if (token) headers["Authorization"] = `Bearer ${token}`;
-                await fetch(`${API_BASE}/orders`, {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify(payload),
-                });
-              }
+          });
+
+          if (!targetItemInOrder) continue;
+
+          const qtyInOrder = targetItemInOrder.quantity;
+
+          // Cancel this order
+          await cancelOrder(order.id);
+          removedSoFar += qtyInOrder;
+
+          // Re-balance logic
+          const itemsToKeep: any[] = [];
+
+          // 1. Add back OTHER items in this order
+          order.items.forEach((oi: any) => {
+            // We need to exclude the SPECIFIC instance we targeted.
+            // Since 'targetItemInOrder' is a reference from 'order.items', we can compare reference?
+            // Yes, usually.
+            if (oi !== targetItemInOrder) {
+              itemsToKeep.push({
+                itemId: parseInt(oi.id, 10) || oi.id,
+                quantity: oi.quantity,
+                specialInstructions: oi.specialInstructions,
+                spiceLevel: oi.spiceLevel,
+                customizations: oi.customizations,
+              });
             }
+          });
+
+          // 2. Add back the remainder of THIS item if we removed too much
+          // Logic:
+          // removing(2). found(5). removedSoFar(5). Excess removed = 3.
+          // But 'removedSoFar' is cumulative.
+          // We need to know how much of THIS specific order's quantity was "consumed" by the removal.
+
+          // 'needed' = countToRemove - (removedSoFar - qtyInOrder)
+          // 'consumed' = min(needed, qtyInOrder)
+          // 'remainder' = qtyInOrder - consumed.
+
+          const previousRemoved = removedSoFar - qtyInOrder;
+          const needed = countToRemove - previousRemoved;
+          const consumed = Math.min(needed, qtyInOrder);
+          const remainder = qtyInOrder - consumed;
+
+          if (remainder > 0) {
+            itemsToKeep.push({
+              itemId:
+                parseInt(targetItemInOrder.id, 10) || targetItemInOrder.id,
+              quantity: remainder,
+              specialInstructions: (targetItemInOrder as any)
+                .specialInstructions,
+              spiceLevel: targetItemInOrder.spiceLevel,
+              customizations: targetItemInOrder.customizations,
+            });
+          }
+
+          // Execute Re-Creation if we have items to keep
+          if (itemsToKeep.length > 0 && activeTable) {
+            const payload = {
+              tableId: activeTable.id,
+              items: itemsToKeep,
+              customerName: localCustomerName || "",
+              customerPhone: localCustomerPhone || "",
+              restaurantId: restaurantId
+                ? parseInt(restaurantId, 10)
+                : undefined,
+              orderType: "addon", // maintain valid type
+            };
+            const token = localStorage.getItem("accessToken");
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            await fetch(`${API_BASE}/orders`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(payload),
+            });
           }
         }
-        toast({ title: "Quantity Updated", description: `Removed items.` });
       }
 
       if (activeTable) {
@@ -553,39 +737,82 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       toast({ variant: "destructive", title: "Update failed" });
     } finally {
       setIsProcessing(false);
+      setProcessingKey(null);
+      // Clear Optimistic
+      setOptimisticUpdates((prev) => {
+        const n = { ...prev };
+        delete n[itemObj.uniqueKey];
+        return n;
+      });
     }
   };
 
-  const handleInstantRemove = async (itemId: string) => {
-    // ... existing logic ...
-    // Reuse existing logic or keep it for the "-" button?
-    // The "-" button removes ONE item. The input can remove MANY.
-    // Let's keep existing logic primarily for the "-" button if it's different/safer?
-    // Actually existing logic is "find order and cancel".
-    // Let's leave handleInstantRemove as is for safety.
+  const handleDebouncedUpdate = (item: any, targetQty: number) => {
+    const key = item.uniqueKey;
+    if (!key) return;
 
-    // ... (rest of function)
-    // Find the most recent cancelable order containing this item
-    // Prefer "Pending" or "Confirmed" status.
-    // If order has multiple items, we can't easily remove just one unless backend supports "remove item".
-    // Assuming backend ONLY supports "Cancel Order", we can only cancel single-item orders safely,
-    // OR explain to user we are cancelling the whole order?
-    // User requested: "remove that".
+    // 1. Instant Optimistic Update
+    setOptimisticUpdates((prev) => ({ ...prev, [key]: targetQty }));
 
-    // Strategy: Find an order that contains THIS item.
-    // Sort orders by date descending.
+    // 2. Debounce Execution
+    if (updateTimeouts.current[key]) {
+      clearTimeout(updateTimeouts.current[key]);
+    }
+
+    updateTimeouts.current[key] = setTimeout(() => {
+      handleDirectQuantityChange(item, targetQty);
+      delete updateTimeouts.current[key];
+    }, 600); // 600ms debounce
+  };
+
+  const handleInstantRemove = async (item: any) => {
+    const itemId = item.itemId || item;
+    setIsProcessing(true);
+    if (item.uniqueKey) {
+      setProcessingKey(item.uniqueKey);
+      // Optimistic Decrement
+      const currentQty = item.quantity || 1;
+      setOptimisticUpdates((prev) => ({
+        ...prev,
+        [item.uniqueKey]: Math.max(0, currentQty - 1),
+      }));
+    }
+
     const candidates = [...pastOrders].sort((a, b) => b.date - a.date);
-
-    // We strive to find an order that has ONLY this item and is not Served/Completed.
-    // Or if it has multiple items, we warn?
-    // But for "Instant Order" flow (click = 1 order), most orders will be single items.
-
     const targetOrder = candidates.find(
       (o) =>
-        o.items.some((i) => i.id === itemId) &&
-        o.status !== "Served" &&
-        o.status !== "Completed" &&
-        o.status !== "Cancelled"
+        o.items.some((i: any) => {
+          if (i.id !== itemId) return false;
+
+          // Compare Spice Level
+          const itemSpice = item.spiceLevel || null;
+          const orderSpice = i.spiceLevel || null;
+          if (itemSpice !== orderSpice) return false;
+
+          // Compare Customizations
+          // Normalize to strings for comparison or check arrays
+          // Frontend 'item' has customizations array. Backend 'i' has customizations array.
+          // They might be different structures or orders.
+          // Let's rely on a simplified comparison: check if all option IDs match.
+
+          const itemCusts = item.customizations || [];
+          const orderCusts = i.customizations || [];
+
+          if (itemCusts.length !== orderCusts.length) return false;
+
+          // Check if every customization in 'item' exists in 'order'
+          const allMatch = itemCusts.every((c1: any) =>
+            orderCusts.some(
+              (c2: any) =>
+                // Check by ID if available, else name
+                (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                (c1.id && c2.id && c1.id === c2.id) ||
+                c1.name === c2.name
+            )
+          );
+
+          return allMatch;
+        }) && !["Served", "Completed", "Cancelled"].includes(o.status)
     );
 
     if (!targetOrder) {
@@ -596,77 +823,236 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       return;
     }
 
-    // Check if it's a single item order
-    if (targetOrder.items.length > 1) {
-      if (
-        !confirm(
-          `The latest order with ${itemId} contains other items too. Cancelling it will remove ALL items in that order (#${targetOrder.orderNumber}). Continue?`
-        )
-      ) {
-        return;
+    // Logic:
+    // 1. Identify valid items to keep.
+    // 2. Cancel original order.
+    // 3. Re-create order with KEEP items in a single batch.
+
+    const itemsToKeep: any[] = [];
+
+    // Iterate through all items in the order to build the replacement payload
+    targetOrder.items.forEach((ordItem: any) => {
+      // Is this the item we are targeting?
+      if (ordItem.id === itemId) {
+        // If this is the target item
+        if (ordItem.quantity > 1) {
+          // Keep it, but decrement
+          itemsToKeep.push({
+            itemId: parseInt(ordItem.id, 10) || ordItem.id,
+            quantity: ordItem.quantity - 1,
+            specialInstructions: ordItem.specialInstructions || null,
+            spiceLevel: ordItem.spiceLevel || null,
+            customizations: ordItem.customizations || undefined,
+          });
+        }
+        // If quantity is 1, we drop it (don't push to itemsToKeep)
+      } else {
+        // Keep other items exactly as is
+        itemsToKeep.push({
+          itemId: parseInt(ordItem.id, 10) || ordItem.id,
+          quantity: ordItem.quantity,
+          specialInstructions: ordItem.specialInstructions || null,
+          spiceLevel: ordItem.spiceLevel || null,
+          customizations: ordItem.customizations || undefined,
+        });
       }
+    });
+
+    const hasOtherItems = targetOrder.items.length > 1; // Re-evaluate after potential decrement
+
+    if (
+      hasOtherItems &&
+      !confirm(
+        `This action will technically cancel Order #${targetOrder.orderNumber} and re-create it with the remaining items to simulate deletion.\n\nProceed?`
+      )
+    ) {
+      return;
     }
 
     setIsProcessing(true);
+    if (item.uniqueKey) setProcessingKey(item.uniqueKey);
     try {
+      // Step A: Cancel the original order
       await cancelOrder(targetOrder.id);
-      toast({ title: "Item removed", description: "Order cancelled." });
+
+      // Step B: Create new order if there are items to keep
+      if (itemsToKeep.length > 0 && activeTable) {
+        const payload = {
+          tableId: activeTable.id,
+          items: itemsToKeep,
+          customerName: localCustomerName || "",
+          customerPhone: localCustomerPhone || "",
+          restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
+          orderType: "addon", // Re-ordering is effectively an addon or we keep original type? "addon" is safer for existing session.
+        };
+
+        const token = localStorage.getItem("accessToken");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        await fetch(`${API_BASE}/orders`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        toast({
+          title: "Updated Order",
+          description: `Removed item/decremented quantity.`,
+        });
+      } else {
+        toast({
+          title: "Item removed",
+          description: "Order cancelled (empty).",
+        });
+      }
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Failed to update order" });
     } finally {
-      setIsProcessing(false);
+      if (activeTable) {
+        await fetchRelevantOrders(undefined, String(activeTable.id));
+      } else {
+        await fetchRelevantOrders();
+      }
+      setProcessingKey(null);
+      if (item.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[item.uniqueKey];
+          return n;
+        });
+      }
     }
   };
 
-  const handleDeleteAll = async (itemId: string) => {
-    // Find ALL cancelable orders containing this item
+  const handleDeleteAll = async (itemObj: any) => {
+    // itemObj is the aggregated row.
+    const itemId = itemObj.itemId;
+
+    // Find all 'active' orders that contain this SPECIFIC variant
     const targetOrders = pastOrders.filter(
       (o) =>
-        o.items.some((i) => i.id === itemId) &&
-        o.status !== "Served" &&
-        o.status !== "Completed" &&
-        o.status !== "Cancelled"
+        o.items.some((i: any) => {
+          if (i.id !== itemId) return false;
+          // Compare Spice
+          if ((itemObj.spiceLevel || null) !== (i.spiceLevel || null))
+            return false;
+          // Compare Customizations
+          const uCusts = itemObj.customizations || [];
+          const oCusts = i.customizations || [];
+          if (uCusts.length !== oCusts.length) return false;
+          return uCusts.every((c1: any) =>
+            oCusts.some(
+              (c2: any) =>
+                (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                (c1.id && c2.id && c1.id === c2.id) ||
+                c1.name === c2.name
+            )
+          );
+        }) && !["Served", "Completed", "Cancelled"].includes(o.status)
     );
 
     if (targetOrders.length === 0) {
       toast({
         variant: "destructive",
-        title: "No cancelable orders found for this item.",
+        title: "No active orders found for this item.",
       });
       return;
     }
 
-    // Check for mixed orders (containing other items)
-    const mixedOrders = targetOrders.filter((o) => o.items.length > 1);
-    if (mixedOrders.length > 0) {
-      if (
-        !confirm(
-          `You are about to cancel ${targetOrders.length} orders.\n\nWARNING: ${mixedOrders.length} of these orders contain OTHER items which will also be cancelled.\n\nProceed?`
-        )
-      ) {
-        return;
-      }
-    } else {
-      if (
-        !confirm(
-          `Are you sure you want to cancel all ${targetOrders.length} active orders for this item?`
-        )
-      ) {
-        return;
-      }
+    if (
+      !confirm(
+        `Are you sure you want to remove all ${itemObj.quantity} units of this item?`
+      )
+    ) {
+      return;
     }
 
     setIsProcessing(true);
+    if (itemObj.uniqueKey) setProcessingKey(itemObj.uniqueKey);
     try {
       let cancelledCount = 0;
+
       for (const order of targetOrders) {
+        // Check if this order has OTHER items that we need to preserve
+        // OR if it has multiple lines of this item (unlikely with current backend, but possible)
+
+        let itemsToKeep: any[] = [];
+
+        // Iterate over items in this order
+        order.items.forEach((oi: any) => {
+          // Check if THIS item 'oi' matches the variant we are deleting.
+          let isMatch = false;
+          if (oi.id === itemId) {
+            // Check details
+            const spiceMatch =
+              (itemObj.spiceLevel || null) === (oi.spiceLevel || null);
+            const uCusts = itemObj.customizations || [];
+            const oCusts = oi.customizations || [];
+            let custMatch = false;
+            if (uCusts.length === oCusts.length) {
+              custMatch = uCusts.every((c1: any) =>
+                oCusts.some(
+                  (c2: any) =>
+                    (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                    (c1.id && c2.id && c1.id === c2.id) ||
+                    c1.name === c2.name
+                )
+              );
+            }
+            if (spiceMatch && custMatch) {
+              isMatch = true;
+            }
+          }
+
+          if (!isMatch) {
+            // Keep it!
+            itemsToKeep.push({
+              itemId: parseInt(oi.id, 10) || oi.id,
+              quantity: oi.quantity,
+              specialInstructions: oi.specialInstructions,
+              spiceLevel: oi.spiceLevel,
+              customizations: oi.customizations,
+            });
+          }
+        });
+
+        // Cancel the original order
         await cancelOrder(order.id);
         cancelledCount++;
+
+        // If we have items to keep, Re-Order them immediately
+        if (itemsToKeep.length > 0 && activeTable) {
+          const payload = {
+            tableId: activeTable.id,
+            items: itemsToKeep,
+            customerName: localCustomerName || "",
+            customerPhone: localCustomerPhone || "",
+            restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
+            orderType: "addon",
+          };
+          const token = localStorage.getItem("accessToken");
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          await fetch(`${API_BASE}/orders`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          });
+        }
       }
+
       toast({
-        title: "Orders Cancelled",
-        description: `Successfully cancelled ${cancelledCount} orders.`,
+        title: "Items Removed",
+        description: `Removed item from ${cancelledCount} orders.`,
       });
+
       if (activeTable) {
         await fetchRelevantOrders(undefined, String(activeTable.id));
       } else {
@@ -674,9 +1060,9 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       }
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Failed to cancel some orders" });
-    } finally {
+      toast({ variant: "destructive", title: "Failed to remove items" });
       setIsProcessing(false);
+      setProcessingKey(null);
     }
   };
 
@@ -937,17 +1323,48 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                 <div className="p-4 space-y-3">
                   {aggregatedItems.map((item) => (
                     <div
-                      key={item.itemId}
-                      className="group relative flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-2xl transition-all duration-300 hover:border-primary/30 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-black/20 hover:-translate-y-0.5 overflow-hidden"
+                      key={`${item.itemId}-${item.spiceLevel}-${(
+                        item.customizations || []
+                      )
+                        .map((c: any) => c.name)
+                        .join("-")}`}
+                      className={cn(
+                        "group relative flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-2xl transition-all duration-300 hover:border-primary/30 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-black/20 hover:-translate-y-0.5 overflow-hidden",
+                        processingKey === item.uniqueKey &&
+                          "border-primary/30 bg-primary/5"
+                      )}
                     >
                       <div className="flex flex-col gap-1 min-w-0 pr-4 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-0.5">
                           <span
                             className="font-bold text-sm truncate text-slate-800 dark:text-slate-100 tracking-tight"
                             title={item.name}
                           >
                             {item.name}
                           </span>
+                          {/* Subtext for Customizations */}
+                          {((item.customizations &&
+                            item.customizations.length > 0) ||
+                            item.spiceLevel) && (
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 flex flex-wrap gap-1">
+                              {item.spiceLevel && (
+                                <span className="px-1 py-0.5 rounded bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border border-orange-100 dark:border-orange-800/30">
+                                  {item.spiceLevel}
+                                </span>
+                              )}
+                              {item.customizations &&
+                                item.customizations.map(
+                                  (c: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30"
+                                    >
+                                      {c.name}
+                                    </span>
+                                  )
+                                )}
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -985,8 +1402,13 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
-                            onClick={() => handleInstantRemove(item.itemId)}
-                            disabled={isProcessing}
+                            onClick={() => {
+                              const current = item.quantity || 0;
+                              handleDebouncedUpdate(
+                                item,
+                                Math.max(0, current - 1)
+                              );
+                            }}
                           >
                             <Minus className="h-3.5 w-3.5" />
                           </Button>
@@ -999,7 +1421,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                             onBlur={(e) => {
                               const val = parseInt(e.target.value, 10);
                               if (!isNaN(val) && val !== item.quantity) {
-                                handleDirectQuantityChange(item.itemId, val);
+                                handleDebouncedUpdate(item, val);
                               } else {
                                 e.target.value = String(item.quantity);
                               }
@@ -1009,19 +1431,15 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                                 e.currentTarget.blur();
                               }
                             }}
-                            disabled={isProcessing}
                           />
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
                             onClick={() => {
-                              const fullItem = menuItems.find(
-                                (m) => String(m.id) === String(item.itemId)
-                              );
-                              if (fullItem) handleInstantAdd(fullItem);
+                              const current = item.quantity || 0;
+                              handleDebouncedUpdate(item, current + 1);
                             }}
-                            disabled={isProcessing}
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </Button>
@@ -1031,8 +1449,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                           variant="ghost"
                           size="icon"
                           className="h-9 w-9 text-red-500/70 dark:text-red-500/50 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all rounded-xl"
-                          onClick={() => handleDeleteAll(item.itemId)}
-                          disabled={isProcessing}
+                          onClick={() => handleDeleteAll(item)}
                           title="Remove All"
                         >
                           <Trash2 className="h-4 w-4" />

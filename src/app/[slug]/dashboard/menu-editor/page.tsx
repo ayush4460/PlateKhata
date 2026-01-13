@@ -44,6 +44,8 @@ import { useCart } from "@/hooks/use-cart";
 import { useAuth } from "@/hooks/use-auth";
 import { CategoryService } from "@/services/category.service";
 import { Category } from "@/lib/types";
+import { MenuItemCustomizationManager } from "@/components/customizations/menu-item-customization-manager";
+import { CustomizationSelector } from "@/components/customizations/customization-selector";
 
 // Helper function to correctly parse boolean values from DB
 const normalizeBool = (val: any) =>
@@ -75,6 +77,9 @@ export default function MenuEditorPage() {
   >({});
   const { toast } = useToast();
   const { adminUser } = useAuth();
+
+  // Customization State for Creation
+  const [pendingCustomizations, setPendingCustomizations] = useState<any[]>([]);
 
   const API_BASE = (
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
@@ -150,7 +155,8 @@ export default function MenuEditorPage() {
               ? "veg"
               : "non_veg"),
           preparationTime: o.preparation_time ?? o.preparationTime ?? null,
-          hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels), // Added
+          hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels),
+          customizationNames: o.customization_names ?? [], // Map from backend
         }));
         if (!cancelled) {
           setLocalMenuItems(mapped);
@@ -256,6 +262,7 @@ export default function MenuEditorPage() {
       preparationTime: 10,
       imageFile: null,
     });
+    setPendingCustomizations([]);
   };
 
   const handleDelete = async (itemId: string | number | undefined) => {
@@ -350,13 +357,17 @@ export default function MenuEditorPage() {
       form.append("preparationTime", String(editedItem.preparationTime));
     form.append("isAvailable", String(editedItem.isAvailable ?? true));
     form.append("hasSpiceLevels", String(editedItem.hasSpiceLevels ?? false)); // Added
-    if (editedItem.imageFile) {
-      form.append("image", editedItem.imageFile);
+
+    // Add Customizations JSON for creation
+    if (isCreating && pendingCustomizations.length > 0) {
+      form.append(
+        "customizationAssignments",
+        JSON.stringify(pendingCustomizations)
+      );
     }
 
-    // Append restaurantId for multi-tenancy check
-    if (adminUser?.restaurantId) {
-      form.append("restaurantId", String(adminUser.restaurantId));
+    if (editedItem.imageFile) {
+      form.append("image", editedItem.imageFile);
     }
 
     const isUpdating = isEditing && isEditing.id;
@@ -642,24 +653,7 @@ export default function MenuEditorPage() {
               </SelectContent>
             </Select>
           </div>
-          {/* Spice Levels Toggle */}
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="hasSpiceLevels" className="text-right">
-              Spice Customization
-            </Label>
-            <div className="col-span-3 flex items-center">
-              <Switch
-                id="hasSpiceLevels"
-                checked={editedItem.hasSpiceLevels ?? false}
-                onCheckedChange={(v) =>
-                  setEditedItem({ ...editedItem, hasSpiceLevels: !!v })
-                }
-              />
-              <span className="ml-2 text-xs text-muted-foreground">
-                (Allows choosing Mild, Regular, Spicy, Tangy)
-              </span>
-            </div>
-          </div>
+
           {/* Available Toggle */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isAvailable" className="text-right">
@@ -705,6 +699,26 @@ export default function MenuEditorPage() {
             </div>
           )}
         </div>
+
+        {/* Customization Manager (Only for existing items) */}
+        {isEditing && isEditing.id && adminUser?.restaurantId && (
+          <MenuItemCustomizationManager
+            itemId={Number(isEditing.id)}
+            restaurantId={Number(adminUser.restaurantId)}
+          />
+        )}
+
+        {/* Customization Selector (Only for Creation) */}
+        {isCreating && adminUser?.restaurantId && (
+          <div className="border-t pt-4 mt-4">
+            <CustomizationSelector
+              restaurantId={Number(adminUser.restaurantId)}
+              assignments={pendingCustomizations}
+              onChange={setPendingCustomizations}
+            />
+          </div>
+        )}
+
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
@@ -786,6 +800,7 @@ export default function MenuEditorPage() {
                   <TableHead>Category</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Veg</TableHead>
+                  <TableHead>Customizations</TableHead>
                   <TableHead>Available</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -798,6 +813,23 @@ export default function MenuEditorPage() {
                     <TableCell>₹{item.price.toFixed(2)}</TableCell>
                     <TableCell>
                       {item.isVegetarian ? "Veg" : "Non-Veg"}
+                    </TableCell>
+                    <TableCell>
+                      {item.customizationNames &&
+                      item.customizationNames.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {item.customizationNames.map((name, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Switch

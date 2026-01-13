@@ -43,6 +43,7 @@ import {
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { CustomizationSelectionDialog } from "@/components/customizations/customization-selection-dialog";
 
 const normalizeBool = (val: any) =>
   val === true || val === "true" || Number(val) === 1;
@@ -85,9 +86,10 @@ export function MenuContent({
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId");
 
-  // Spice Dialog State
+  // Spice & Customization Dialog State
   const [showSpiceDialog, setShowSpiceDialog] = useState(false);
-  const [spiceItem, setSpiceItem] = useState<MenuItem | null>(null);
+  const [showCustomizationDialog, setShowCustomizationDialog] = useState(false);
+  const [dialogItem, setDialogItem] = useState<MenuItem | null>(null);
   const [selectedSpiceLevel, setSelectedSpiceLevel] = useState("Regular");
 
   const [dynamicCategories, setDynamicCategories] = useState<Category[]>([]);
@@ -297,6 +299,13 @@ export function MenuContent({
             hasSpiceLevels: normalizeBool(
               o.has_spice_levels ?? o.hasSpiceLevels
             ),
+            customizationNames:
+              o.customizationNames ||
+              o.customization_names ||
+              (o.customization_details
+                ? o.customization_details.map((d: any) => d.group_name)
+                : []),
+            customizationDetails: o.customization_details || [],
           } as MenuItem;
         });
 
@@ -360,8 +369,19 @@ export function MenuContent({
 
   const handleAddToCart = async (item: MenuItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
+
+    // Check for Customizations first
+    if (
+      (item.customizationNames && item.customizationNames.length > 0) ||
+      (item.customizationDetails && item.customizationDetails.length > 0)
+    ) {
+      setDialogItem(item);
+      setShowCustomizationDialog(true);
+      return;
+    }
+
     if (item.hasSpiceLevels) {
-      setSpiceItem(item);
+      setDialogItem(item);
       setSelectedSpiceLevel("Regular");
       setShowSpiceDialog(true);
     } else {
@@ -419,16 +439,41 @@ export function MenuContent({
     }
   };
 
+  const handleCustomizationConfirm = (
+    item: MenuItem,
+    selectedOptions: any[]
+  ) => {
+    const quantityToAdd = getQty(item.id);
+
+    const itemToAdd = {
+      ...item,
+      customizations: selectedOptions,
+      quantity: quantityToAdd,
+    };
+
+    if (onAddToCart) {
+      onAddToCart(itemToAdd);
+    } else {
+      for (let i = 0; i < quantityToAdd; i++) {
+        addToCart(itemToAdd);
+      }
+    }
+    setItemQuantities((prev) => ({ ...prev, [item.id]: 1 }));
+  };
+
   const confirmSpiceSelection = () => {
-    if (spiceItem) {
-      const itemToAdd = { ...spiceItem, spiceLevel: selectedSpiceLevel } as any;
+    if (dialogItem) {
+      const itemToAdd = {
+        ...dialogItem,
+        spiceLevel: selectedSpiceLevel,
+      } as any;
       if (onAddToCart) {
         onAddToCart(itemToAdd);
       } else {
         addToCart(itemToAdd);
       }
       setShowSpiceDialog(false);
-      setSpiceItem(null);
+      setDialogItem(null);
     }
   };
 
@@ -530,6 +575,14 @@ export function MenuContent({
         </div>
       </header>
 
+      {/* Customization Dialog */}
+      <CustomizationSelectionDialog
+        open={showCustomizationDialog}
+        onOpenChange={setShowCustomizationDialog}
+        item={dialogItem}
+        onConfirm={handleCustomizationConfirm}
+      />
+
       <main
         className={cn(
           "flex-1 flex flex-col min-h-0",
@@ -607,13 +660,73 @@ export function MenuContent({
                             <h3 className="font-medium text-sm leading-tight line-clamp-2 flex-1">
                               {item.name}
                             </h3>
-                            <span className="font-bold text-sm whitespace-nowrap flex-shrink-0">
-                              ₹{item.price.toFixed(2)}
-                            </span>
+                            <div className="flex flex-col items-end">
+                              <span className="font-bold text-sm whitespace-nowrap flex-shrink-0">
+                                {item.customizationDetails &&
+                                item.customizationDetails.length > 0 &&
+                                item.customizationDetails[0].options.length > 0
+                                  ? (() => {
+                                      // Get options from the first group (assuming it's the primary variant)
+                                      const primaryOptions =
+                                        item.customizationDetails[0].options;
+                                      // Sort by price
+                                      const sortedPrices = primaryOptions
+                                        .map(
+                                          (o) => item.price + o.priceModifier
+                                        )
+                                        .sort((a, b) => a - b);
+
+                                      // If all prices are the same, show one
+                                      if (
+                                        sortedPrices[0] ===
+                                        sortedPrices[sortedPrices.length - 1]
+                                      ) {
+                                        return `₹${sortedPrices[0].toFixed(0)}`;
+                                      }
+
+                                      // Format as "₹20/₹40" if 2 options, or range if more?
+                                      // User requested "rs20/rs40" specifically.
+                                      if (primaryOptions.length <= 2) {
+                                        return sortedPrices
+                                          .map((p) => `₹${p.toFixed(0)}`)
+                                          .join("/");
+                                      }
+
+                                      // Otherwise show range "₹20 - ₹40" or "From ₹20"
+                                      return `₹${sortedPrices[0].toFixed(
+                                        0
+                                      )} - ₹${sortedPrices[
+                                        sortedPrices.length - 1
+                                      ].toFixed(0)}`;
+                                    })()
+                                  : `₹${item.price.toFixed(2)}`}
+                              </span>
+                            </div>
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2 h-8">
                             {item.description}
                           </p>
+
+                          {/* Compact Customization Display */}
+                          {item.customizationDetails &&
+                          item.customizationDetails.length > 0 ? (
+                            <div className="pt-1">
+                              {item.customizationDetails.map((group, idx) => (
+                                <div
+                                  key={idx}
+                                  className="text-[10px] font-medium text-muted-foreground/80 leading-tight flex items-center gap-1"
+                                >
+                                  {/* User requested to only show names like "Cutting/Full" without the group label prefix */}
+                                  <span>
+                                    {group.options
+                                      .map((opt) => opt.name)
+                                      .join("/")}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+
                           <div className="flex items-center gap-2 w-full pt-2">
                             {/* Quantity Selector */}
                             <div
@@ -949,7 +1062,7 @@ export function MenuContent({
           <DialogHeader>
             <DialogTitle>Customize Spice Level</DialogTitle>
             <DialogDescription>
-              Select your preferred spice level for {spiceItem?.name}
+              Select your preferred spice level for {dialogItem?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-4">

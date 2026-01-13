@@ -255,9 +255,10 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
     quantity: item.quantity,
     price: parseFloat(String(item.unit_price || item.price || "0")),
     category: item.item_category,
-    spiceLevel: item.spice_level, // Added
+    spiceLevel: item.spice_level,
+    customizations: item.customizations, // Added
   })),
-  platform: order.external_platform, // Added
+  platform: order.external_platform,
 });
 
 const mapBackendOrderToKitchenOrder = (
@@ -301,6 +302,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const { toast } = useToast();
   const isSubmittingRef = useRef(false);
+  const fetchTimeout = useRef<NodeJS.Timeout | null>(null);
   const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
   const [activeOrders, setActiveOrders] = useState<PastOrder[]>([]); // NEW: For Table Status (Unfiltered)
   const [kitchenOrders, setKitchenOrders] = useState<KitchenOrdersState>({
@@ -509,105 +511,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       fetchSettings();
     }
   }, [restaurantId, fetchSettings]);
-
-  useEffect(() => {
-    setIsCartLoading(true);
-
-    // Load cart from localStorage
-    const storedCart =
-      safeJsonParse<CartItem[]>(localStorage.getItem("cart")) ?? [];
-    setCart(storedCart);
-
-    // Load table number from localStorage (plain string)
-    const storedTableNumber = localStorage.getItem("tableNumber");
-    if (storedTableNumber) {
-      setTableNumber(storedTableNumber);
-    }
-
-    // Load customer details from localStorage
-    const storedCustomer = safeJsonParse<{ name: string; phone: string }>(
-      localStorage.getItem("Five_petals_customer")
-    );
-
-    if (storedCustomer) {
-      // Validate to identify if it's the old default "Admin" or "Guest" and ignore it
-      const isDefault =
-        storedCustomer.name === "Admin" ||
-        storedCustomer.name === "Guest" ||
-        storedCustomer.phone === "0000000000";
-
-      if (!isDefault) {
-        setCustomerDetails(storedCustomer);
-      }
-    }
-
-    // Load session token from localStorage
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("session_token");
-      //console.log('[DEBUG INIT] Loaded session_token:', stored ? 'present' : 'null');
-      if (stored) {
-        setSessionToken(stored);
-      }
-    }
-
-    // Load admin-specific data if authenticated
-    if (hasAuthToken()) {
-      const storedMenuItems =
-        safeJsonParse<MenuItem[]>(localStorage.getItem("menuItems")) ?? [];
-      const storedTaxRate =
-        safeJsonParse<number>(localStorage.getItem("taxRate")) ?? 0.0;
-      const storedDiscountRate =
-        safeJsonParse<number>(localStorage.getItem("discountRate")) ?? 0.0;
-      setMenuItemsState(storedMenuItems);
-      setTaxRateState(storedTaxRate);
-      setDiscountRate(storedDiscountRate);
-
-      // Explicitly fetch tables on mount to ensure Admin Dashboard loads immediately
-      fetchTables();
-      fetchActiveOrders(); // NEW: Initial fetch
-    }
-
-    const storedUpiId = localStorage.getItem("upiId");
-    if (storedUpiId) {
-      setUpiId(storedUpiId);
-    }
-
-    const storedRestaurantId = localStorage.getItem("restaurantId");
-    if (storedRestaurantId) {
-      setRestaurantIdState(storedRestaurantId.replace(/^"|"$/g, ""));
-    } else {
-      // Fallback: Check if Admin is logged in
-      try {
-        const adminUser = JSON.parse(localStorage.getItem("adminUser") || "{}");
-        if (adminUser.restaurantId) {
-          console.log(
-            "[DEBUG INIT] using adminUser restaurantId:",
-            adminUser.restaurantId
-          );
-          setRestaurantIdState(
-            String(adminUser.restaurantId).replace(/^"|"$/g, "")
-          );
-        }
-      } catch (e) {}
-    }
-
-    const storedSlug = localStorage.getItem("restaurantSlug");
-    console.log("[DEBUG INIT] Loaded storedSlug:", storedSlug);
-    if (storedSlug) setRestaurantSlugState(storedSlug);
-
-    const storedToken = localStorage.getItem("tableToken");
-    console.log("[DEBUG INIT] Loaded storedToken:", storedToken);
-    if (storedToken) setTableTokenState(storedToken);
-
-    // Initialize empty orders
-    setPastOrders([]);
-
-    // Connect socket
-    console.log("[DEBUG INIT] Connecting socket...");
-    connectSocket();
-    // fetchSettings() is now handled by its own useEffect
-    setIsCartLoading(false);
-  }, []);
 
   // --- API Fetching Functions ---
   const extractArrayFromResponse = (
@@ -932,29 +835,27 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!sessionToken && !hasAuthToken()) {
-      //console.log('[DEBUG SESSION EFFECT] No session token or auth, skipping fetch');
-      return;
-    }
-
-    //console.log('[DEBUG SESSION EFFECT] Session or table changed, fetching orders...');
-    //console.log('[DEBUG SESSION EFFECT] sessionToken:', sessionToken ? 'present' : 'null');
-    //console.log('[DEBUG SESSION EFFECT] tableNumber:', tableNumber);
-
-    // Fetch orders when session token or table becomes available
+    if (!sessionToken && !hasAuthToken()) return;
     fetchRelevantOrders();
   }, [sessionToken, tableNumber, fetchRelevantOrders]);
+
+  const debouncedRefresh = useCallback(() => {
+    if (fetchTimeout.current) clearTimeout(fetchTimeout.current);
+    fetchTimeout.current = setTimeout(() => {
+      console.log("[DEBUG SOCKET] Executing debounced refresh...");
+      fetchRelevantOrders();
+      if (hasAuthToken()) {
+        fetchKitchenOrders();
+        fetchActiveOrders();
+        fetchTables(true);
+      }
+    }, 500);
+  }, [fetchRelevantOrders, fetchKitchenOrders, fetchActiveOrders, fetchTables]);
 
   // --- Socket Connection ---
 
   const connectSocket = useCallback(() => {
-    if (socket || typeof window === "undefined") {
-      //console.log('[DEBUG SOCKET] Socket already connected or SSR, skipping connect.');
-      return;
-    }
-
-    //console.log('[DEBUG SOCKET] Attempting socket connect...');
-    const isAdminConnected = hasAuthToken();
+    if (socket || typeof window === "undefined") return;
 
     const newSocket = io(SOCKET_URL, {
       auth: (cb) => {
@@ -964,7 +865,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
 
     setSocket(newSocket);
-  }, [socket]); // Reduced dependencies as we moved logic out
+  }, [socket]);
 
   // --- Socket Event Listeners (Prevent Stale Closures) ---
   useEffect(() => {
@@ -972,14 +873,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const handleConnect = () => {
       console.log("[DEBUG SOCKET] Connected");
-      fetchRelevantOrders();
-      fetchRelevantOrders();
+      debouncedRefresh();
       if (hasAuthToken()) {
-        fetchTables();
-        fetchKitchenOrders();
-        fetchActiveOrders(); // NEW
         socket.emit("join:kitchen");
-        socket.emit("join:admin"); // Join restaurant-specific room
+        socket.emit("join:admin");
       }
     };
 
@@ -989,12 +886,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         title: "New Order!",
         description: `Table ${order?.table_id}`,
       });
-      fetchRelevantOrders();
-      fetchRelevantOrders();
-      if (hasAuthToken()) {
-        fetchKitchenOrders();
-        fetchActiveOrders(); // NEW
-      }
+      debouncedRefresh();
     };
 
     const handleStatusUpdate = (data: {
@@ -1006,42 +898,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const friendlyStatus =
         data.status.charAt(0).toUpperCase() + data.status.slice(1);
       const tableMsg = data.tableId ? `Table ${data.tableId}` : "Your order";
-      toast({
-        title: "Order Update",
-
-        description: `${tableMsg} is ${friendlyStatus}`,
-      });
-      console.log("[DEBUG SOCKET] Triggering fetchRelevantOrders()");
-      // The original code had two fetchRelevantOrders() calls here,
-      // which seems like a potential bug or redundancy.
-      // The new logic implies one fetchRelevantOrders() call per branch.
 
       if (data.status === "info-update") {
-        // Just refetch without toast
-        fetchRelevantOrders();
-        if (hasAuthToken()) {
-          fetchKitchenOrders();
-          fetchActiveOrders();
-        }
+        debouncedRefresh();
         return;
       }
 
-      // For other status updates, show toast and refetch
       toast({
         title: "Order Update",
         description: `Order #${data.orderId} is now ${friendlyStatus}`,
       });
-      fetchRelevantOrders();
-      if (hasAuthToken()) {
-        fetchKitchenOrders();
-        fetchTables(true); // Silent Refresh
-        fetchActiveOrders(); // Refresh active orders for accurate table status
-      }
+      debouncedRefresh();
     };
 
     const handleTableUpdate = (data: any) => {
       console.log('[DEBUG SOCKET] Event "table:update" received', data);
-
       setBackendTables((prev) =>
         prev.map((t) =>
           String(t.table_id || t.id) === String(data.tableId)
@@ -1053,9 +924,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             : t
         )
       );
-
       if (hasAuthToken()) {
-        fetchTables(true); // Silent Refresh for table card updates
+        fetchTables(true);
       }
     };
 
@@ -1065,19 +935,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const handleConnectError = (err: any) => {
       console.error("[DEBUG SOCKET] Socket connection error:", err.message);
-
-      // Recovery: If auth error, clear bad token and retry as guest
       if (
         err.message === "Authentication error" ||
         err.message === "xhr poll error"
       ) {
         const token = localStorage.getItem("accessToken");
         if (token) {
-          console.warn(
-            "[DEBUG SOCKET] Clearing invalid access token and retrying..."
-          );
           localStorage.removeItem("accessToken");
-          // Force update auth payload for next attempt
           if (socket) {
             socket.auth = {};
             socket.connect();
@@ -1090,17 +954,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     socket.on("connect", handleConnect);
     socket.on("order:new", handleNewOrder);
     socket.on("order:statusUpdate", handleStatusUpdate);
-    socket.on("table:update", handleTableUpdate); // Added listener
+    socket.on("table:update", handleTableUpdate);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
 
-    // If socket is already connected (re-render), ensure we join/fetch if needed
+    // If socket is already connected
     if (socket.connected && hasAuthToken()) {
       socket.emit("join:admin");
       socket.emit("join:kitchen");
     }
 
-    // Cleanup
     return () => {
       socket.off("connect", handleConnect);
       socket.off("order:new", handleNewOrder);
@@ -1109,7 +972,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       socket.off("disconnect", handleDisconnect);
       socket.off("connect_error", handleConnectError);
     };
-  }, [socket, fetchRelevantOrders, fetchKitchenOrders, fetchTables, toast]);
+  }, [socket, debouncedRefresh, toast]);
 
   // Join table room when socket and tableId are ready
   useEffect(() => {
@@ -1338,6 +1201,33 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // --- Cart Management (Local State) ---
+  // --- Cart Management (Local State) ---
+
+  const areItemsEqual = useCallback((cartItem: CartItem, newItem: MenuItem) => {
+    if (cartItem.id !== newItem.id) return false;
+
+    // Safe access properties
+    const cSpice = cartItem.spiceLevel || null;
+    const nSpice = (newItem as any).spiceLevel || null;
+    if (cSpice !== nSpice) return false;
+
+    const cInstr = cartItem.specialInstructions || null;
+    const nInstr = (newItem as any).specialInstructions || null;
+    if (cInstr !== nInstr) return false;
+
+    const cCust = cartItem.customizations || [];
+    const nCust = (newItem as any).customizations || [];
+
+    if (cCust.length !== nCust.length) return false;
+
+    // Deep compare customizations (by Option ID)
+    // Assuming 'id' is the option id.
+    const cIds = cCust.map((c) => c.id).sort((a, b) => a - b);
+    const nIds = nCust.map((c: any) => c.id).sort((a: any, b: any) => a - b);
+
+    return cIds.every((id, idx) => id === nIds[idx]);
+  }, []);
+
   const addToCart = useCallback(
     (item: MenuItem) => {
       if (!item.isAvailable) {
@@ -1350,12 +1240,31 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setCart((prev) => {
-        const existing = prev.find((i) => i.id === item.id);
-        const updated = existing
-          ? prev.map((i) =>
-              i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-            )
-          : [...prev, { ...item, quantity: 1 }];
+        // Check for IDENTICAL item (same ID options)
+        const existingIndex = prev.findIndex((i) => areItemsEqual(i, item));
+
+        let updated;
+        if (existingIndex > -1) {
+          // Update existing item quantity
+          updated = [...prev];
+          const existingItem = updated[existingIndex];
+          updated[existingIndex] = {
+            ...existingItem,
+            quantity: existingItem.quantity + ((item as any).quantity || 1),
+          };
+        } else {
+          // Add new unique item
+          const newItem: CartItem = {
+            ...item,
+            cartItemId: crypto.randomUUID(), // Generate Unique Cart ID
+            quantity: (item as any).quantity || 1,
+            customizations: (item as any).customizations || [],
+            spiceLevel: (item as any).spiceLevel,
+            specialInstructions: (item as any).specialInstructions,
+          };
+          updated = [...prev, newItem];
+        }
+
         writeToStorage("cart", updated);
         return updated;
       });
@@ -1365,13 +1274,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         description: `${item.name} added.`,
       });
     },
-    [toast]
+    [toast, areItemsEqual]
   );
 
   const removeFromCart = useCallback(
-    (itemId: string) => {
+    (identifier: string) => {
       setCart((prev) => {
-        const updated = prev.filter((i) => i.id !== itemId);
+        // Try to remove by cartItemId first, then by id if not found (legacy)
+        let updated = prev.filter((i) => i.cartItemId !== identifier);
+
+        // If nothing removed (length same) and identifier looks like a numeric ID, try removing by ID
+        if (updated.length === prev.length) {
+          updated = prev.filter((i) => i.id !== identifier);
+        }
+
         writeToStorage("cart", updated);
         return updated;
       });
@@ -1384,14 +1300,27 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const updateQuantity = useCallback(
-    (itemId: string, quantity: number) => {
+    (identifier: string, quantity: number) => {
       if (quantity <= 0) {
-        removeFromCart(itemId);
+        removeFromCart(identifier);
       } else {
         setCart((prev) => {
-          const updated = prev.map((i) =>
-            i.id === itemId ? { ...i, quantity } : i
-          );
+          let found = false;
+          let updated = prev.map((i) => {
+            if (i.cartItemId === identifier) {
+              found = true;
+              return { ...i, quantity };
+            }
+            return i;
+          });
+
+          if (!found) {
+            // Fallback to ID match
+            updated = prev.map((i) =>
+              i.id === identifier ? { ...i, quantity } : i
+            );
+          }
+
           writeToStorage("cart", updated);
           return updated;
         });
@@ -1401,11 +1330,23 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const updateItemInstructions = useCallback(
-    (itemId: string, instructions: string) => {
+    (identifier: string, instructions: string) => {
       setCart((prev) => {
-        const updated = prev.map((i) =>
-          i.id === itemId ? { ...i, specialInstructions: instructions } : i
-        );
+        let found = false;
+        let updated = prev.map((i) => {
+          if (i.cartItemId === identifier) {
+            found = true;
+            return { ...i, specialInstructions: instructions };
+          }
+          return i;
+        });
+        if (!found) {
+          updated = prev.map((i) =>
+            i.id === identifier
+              ? { ...i, specialInstructions: instructions }
+              : i
+          );
+        }
         writeToStorage("cart", updated);
         return updated;
       });
@@ -1419,7 +1360,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const getTotalPrice = useCallback(
-    () => cart.reduce((total, item) => total + item.price * item.quantity, 0),
+    () =>
+      cart.reduce((total, item) => {
+        const customizationTotal = (item.customizations || []).reduce(
+          (sum, c) => sum + (Number(c.price) || 0),
+          0
+        );
+        return total + (item.price + customizationTotal) * item.quantity;
+      }, 0),
     [cart]
   );
 
@@ -1475,6 +1423,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
                 isVegetarian: !!liveItemRaw.is_vegetarian,
                 preparationTime: liveItemRaw.preparation_time,
                 quantity: pastItem.quantity,
+                cartItemId: crypto.randomUUID(), // Valid new ID for repeated item
                 specialInstructions: "",
                 spiceLevel: (pastItem as any).spiceLevel || null, // Added
               });
@@ -1585,7 +1534,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           itemId: parseInt(item.id, 10),
           quantity: item.quantity,
           specialInstructions: item.specialInstructions || null,
-          spiceLevel: item.spiceLevel || null, // Added
+          spiceLevel: item.spiceLevel || null,
+          customizations: item.customizations || [], // Added
         })),
         customerName: customer.name,
         customerPhone: customer.phone,
@@ -2357,6 +2307,105 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     },
     [fetchTables, fetchActiveOrders]
   );
+
+  useEffect(() => {
+    setIsCartLoading(true);
+
+    // Load cart from localStorage
+    const storedCart =
+      safeJsonParse<CartItem[]>(localStorage.getItem("cart")) ?? [];
+    setCart(storedCart);
+
+    // Load table number from localStorage (plain string)
+    const storedTableNumber = localStorage.getItem("tableNumber");
+    if (storedTableNumber) {
+      setTableNumber(storedTableNumber);
+    }
+
+    // Load customer details from localStorage
+    const storedCustomer = safeJsonParse<{ name: string; phone: string }>(
+      localStorage.getItem("Five_petals_customer")
+    );
+
+    if (storedCustomer) {
+      // Validate to identify if it's the old default "Admin" or "Guest" and ignore it
+      const isDefault =
+        storedCustomer.name === "Admin" ||
+        storedCustomer.name === "Guest" ||
+        storedCustomer.phone === "0000000000";
+
+      if (!isDefault) {
+        setCustomerDetails(storedCustomer);
+      }
+    }
+
+    // Load session token from localStorage
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("session_token");
+      //console.log('[DEBUG INIT] Loaded session_token:', stored ? 'present' : 'null');
+      if (stored) {
+        setSessionToken(stored);
+      }
+    }
+
+    // Load admin-specific data if authenticated
+    if (hasAuthToken()) {
+      const storedMenuItems =
+        safeJsonParse<MenuItem[]>(localStorage.getItem("menuItems")) ?? [];
+      const storedTaxRate =
+        safeJsonParse<number>(localStorage.getItem("taxRate")) ?? 0.0;
+      const storedDiscountRate =
+        safeJsonParse<number>(localStorage.getItem("discountRate")) ?? 0.0;
+      setMenuItemsState(storedMenuItems);
+      setTaxRateState(storedTaxRate);
+      setDiscountRate(storedDiscountRate);
+
+      // Explicitly fetch tables on mount to ensure Admin Dashboard loads immediately
+      fetchTables();
+      fetchActiveOrders(); // NEW: Initial fetch
+    }
+
+    const storedUpiId = localStorage.getItem("upiId");
+    if (storedUpiId) {
+      setUpiId(storedUpiId);
+    }
+
+    const storedRestaurantId = localStorage.getItem("restaurantId");
+    if (storedRestaurantId) {
+      setRestaurantIdState(storedRestaurantId.replace(/^"|"$/g, ""));
+    } else {
+      // Fallback: Check if Admin is logged in
+      try {
+        const adminUser = JSON.parse(localStorage.getItem("adminUser") || "{}");
+        if (adminUser.restaurantId) {
+          console.log(
+            "[DEBUG INIT] using adminUser restaurantId:",
+            adminUser.restaurantId
+          );
+          setRestaurantIdState(
+            String(adminUser.restaurantId).replace(/^"|"$/g, "")
+          );
+        }
+      } catch (e) {}
+    }
+
+    const storedSlug = localStorage.getItem("restaurantSlug");
+    console.log("[DEBUG INIT] Loaded storedSlug:", storedSlug);
+    if (storedSlug) setRestaurantSlugState(storedSlug);
+
+    const storedToken = localStorage.getItem("tableToken");
+    console.log("[DEBUG INIT] Loaded storedToken:", storedToken);
+    if (storedToken) setTableTokenState(storedToken);
+
+    // Initialize empty orders
+    setPastOrders([]);
+
+    // Connect socket
+    console.log("[DEBUG INIT] Connecting socket...");
+    connectSocket();
+    // fetchSettings() is now handled by its own useEffect
+    setIsCartLoading(false);
+  }, []);
 
   const value = {
     cart,

@@ -18,13 +18,17 @@ export interface MenuItem {
   preparationTime: number | null;
   imageId?: string;
   hasSpiceLevels?: boolean; // Added
+  customizationNames?: string[]; // Added
+  customizationDetails?: { group_name: string; options: { name: string; priceModifier: number }[] }[]; // Added
 }
 
 // An item when it is in the cart
 export interface CartItem extends MenuItem {
+  cartItemId: string; // Unique ID for this specific cart instance (to handle different customziations)
   quantity: number;
   specialInstructions?: string;
-  spiceLevel?: string; // Added
+  spiceLevel?: string;
+  customizations?: { id: number; name: string; price: number; groupId: number }[]; // Added
 }
 
 // The backend's raw Order Item structure
@@ -36,7 +40,8 @@ export interface BackendOrderItem {
   unit_price?: number; // Added to match API
   special_instructions: string | null;
   item_category: string;
-  spice_level?: string | null; // Added
+  spice_level?: string | null;
+  customizations?: { selection_id: number; option_id: number; name: string; price: number }[]; // Added
 }
 
 // The backend's raw Order structure
@@ -83,7 +88,8 @@ export interface PastOrder {
     name: string;
     quantity: number;
     price: number;
-    spiceLevel?: string | null; // Added
+    spiceLevel?: string | null;
+    customizations?: { selection_id?: number; option_id: number; name: string; price: number }[]; // Added
   }[];
   orderType?: 'regular' | 'addon' | 'online';
   sessionId?: string;
@@ -182,3 +188,29 @@ export interface Category {
 
 export type CreateCategoryDTO = Pick<Category, 'name' | 'display_order'> & { restaurantId?: number };
 export type UpdateCategoryDTO = Partial<Omit<Category, 'id' | 'restaurant_id' | 'created_at'>>;
+
+export interface CustomizationOption {
+  id: number; // mapped from option_id
+  group_id: number;
+  name: string;
+  is_available: boolean;
+  display_order: number;
+}
+
+export interface CustomizationGroup {
+  id: number; // mapped from group_id
+  restaurant_id: number;
+  name: string;
+  min_selection: number;
+  max_selection: number;
+  is_required: boolean;
+  is_active: boolean;
+  options: CustomizationOption[];
+}
+
+export type CreateCustomizationGroupDTO = Omit<CustomizationGroup, 'id' | 'restaurant_id' | 'options'> & { 
+  restaurantId?: number;
+  options?: Partial<CustomizationOption>[];
+};
+
+export type UpdateCustomizationGroupDTO = Partial<CreateCustomizationGroupDTO>;
