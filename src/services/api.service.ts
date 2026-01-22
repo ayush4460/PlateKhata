@@ -16,7 +16,7 @@ export const ApiClient = {
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    if (token) {
+    if (token && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -57,6 +57,14 @@ export const ApiClient = {
   put<T>(endpoint: string, body: any, headers?: Record<string, string>) {
     return this.request<T>(endpoint, {
       method: 'PUT',
+      body: JSON.stringify(body),
+      headers,
+    });
+  },
+
+  patch<T>(endpoint: string, body: any, headers?: Record<string, string>) {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
       body: JSON.stringify(body),
       headers,
     });
