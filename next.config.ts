@@ -47,10 +47,23 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/',
       },
+      {
+        protocol: 'https',
+        hostname: 'dhvxnvbbjzmvd.cloudfront.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.cloudfront.net',
+        port: '',
+        pathname: '/**',
+      },
     ],
     // ✅ Add these domains to allow list
     domains: [
       'res.cloudinary.com',
+      'dhvxnvbbjzmvd.cloudfront.net',
       'placehold.co',
       'images.unsplash.com',
       'picsum.photos',
