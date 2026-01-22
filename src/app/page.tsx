@@ -43,8 +43,68 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 selection:bg-amber-500/30">
+      {/* --- NAVBAR --- */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link
+            href="/"
+            className="text-xl font-bold tracking-tight flex items-center gap-2"
+          >
+            <div className="h-8 w-8 rounded-lg bg-amber-500 flex items-center justify-center text-neutral-950 font-bold text-lg">
+              P
+            </div>
+            PlateKhata
+          </Link>
+
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-400">
+            <Link
+              href="#features"
+              className="hover:text-amber-500 transition-colors"
+            >
+              Features
+            </Link>
+            <Link
+              href="#about"
+              className="hover:text-amber-500 transition-colors"
+            >
+              About Us
+            </Link>
+            <Link
+              href="#partners"
+              className="hover:text-amber-500 transition-colors"
+            >
+              Partners
+            </Link>
+            <Link
+              href="#contact"
+              className="hover:text-amber-500 transition-colors"
+            >
+              Contact
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden sm:inline-flex hover:text-amber-500 hover:bg-neutral-900"
+              asChild
+            >
+              <Link href="/login">Log In</Link>
+            </Button>
+            <Button
+              size="sm"
+              className="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold"
+              asChild
+            >
+              <Link href="/login">Get Started</Link>
+            </Button>
+          </div>
+        </div>
+      </nav>
+
       {/* --- HERO SECTION --- */}
-      <section className="relative h-screen w-full overflow-hidden flex items-center justify-center">
+      <section className="relative h-screen w-full overflow-hidden flex items-center justify-center pt-16">
         {/* Background Overlay */}
         <div
           className="absolute inset-0 z-0 bg-cover bg-center opacity-40"
@@ -72,8 +132,9 @@ export default function LandingPage() {
             <Button
               size="lg"
               className="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold px-8 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all hover:scale-105"
+              asChild
             >
-              Get Started
+              <Link href="/login">Get Started</Link>
             </Button>
             <Button
               variant="outline"
@@ -93,7 +154,10 @@ export default function LandingPage() {
       </section>
 
       {/* --- ABOUT SECTION --- */}
-      <section id="about" className="py-24 bg-neutral-950 relative">
+      <section
+        id="about"
+        className="py-24 bg-neutral-950 relative scroll-mt-16"
+      >
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div className="space-y-6">
@@ -135,7 +199,7 @@ export default function LandingPage() {
       </section>
 
       {/* --- SERVICES / FEATURES SECTION --- */}
-      <section id="features" className="py-24 bg-neutral-900/30">
+      <section id="features" className="py-24 bg-neutral-900/30 scroll-mt-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Powerful Features</h2>
@@ -170,7 +234,10 @@ export default function LandingPage() {
       </section>
 
       {/* --- FEATURED RESTAURANTS SECTION --- */}
-      <section className="py-24 bg-neutral-950 border-t border-neutral-900">
+      <section
+        id="partners"
+        className="py-24 bg-neutral-950 border-t border-neutral-900 scroll-mt-16"
+      >
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-end mb-12">
             <div>
@@ -182,19 +249,18 @@ export default function LandingPage() {
             <Button
               variant="ghost"
               className="text-amber-500 hover:text-amber-400 hover:bg-neutral-900 mt-4 md:mt-0"
+              asChild
             >
-              View All <ArrowRight className="ml-2 h-4 w-4" />
+              <Link href="#partners">
+                View All <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
           </div>
 
           {restaurants.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {restaurants.map((rest) => (
-                <Link
-                  key={rest.restaurant_id}
-                  href={`/restaurants/${rest.slug}`}
-                  className="group"
-                >
+                <div key={rest.restaurant_id} className="group cursor-default">
                   <div className="h-full p-6 rounded-xl border border-neutral-800 bg-neutral-900/40 hover:bg-neutral-800 transition-all hover:border-amber-500/30 group-hover:shadow-[0_0_30px_-10px_rgba(245,158,11,0.2)]">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="h-12 w-12 rounded-full bg-neutral-800 flex items-center justify-center text-lg font-bold text-neutral-400 group-hover:text-amber-500 group-hover:bg-neutral-950 transition-colors">
@@ -215,7 +281,7 @@ export default function LandingPage() {
                       </p>
                     )}
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (
@@ -229,7 +295,10 @@ export default function LandingPage() {
       </section>
 
       {/* --- FOOTER --- */}
-      <footer className="py-12 border-t border-neutral-900 bg-neutral-950">
+      <footer
+        id="contact"
+        className="py-12 border-t border-neutral-900 bg-neutral-950 scroll-mt-16"
+      >
         <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-center md:text-left">
             <h4 className="font-bold text-xl mb-2">PlateKhata</h4>
