@@ -54,7 +54,7 @@ interface MenuContentProps {
   customTableId?: number; // Optional: If we want to force a specific table (Admin view)
   layoutMode?: "default" | "split";
   onAddToCart?: (
-    item: MenuItem & { spiceLevel?: string; specialInstructions?: string }
+    item: MenuItem & { spiceLevel?: string; specialInstructions?: string },
   ) => void;
 }
 
@@ -119,7 +119,7 @@ export function MenuContent({
         try {
           console.log("[DEBUG] Verifying token:", tokenQueryParam);
           const res = await fetch(
-            `${API_BASE}/public/tables/verify?token=${tokenQueryParam}`
+            `${API_BASE}/public/tables/verify?token=${tokenQueryParam}`,
           );
 
           if (res.ok) {
@@ -259,23 +259,23 @@ export function MenuContent({
         else if (Array.isArray(raw?.items)) arr = raw.items;
         else {
           const firstArray = Object.values(raw || {}).find((v) =>
-            Array.isArray(v)
+            Array.isArray(v),
           );
           if (Array.isArray(firstArray)) arr = firstArray as any[];
         }
 
         const mapped: MenuItem[] = (arr || []).map((o: any, idx: number) => {
           const id = String(
-            o.item_id ?? o.id ?? o.itemId ?? `menu-${Date.now()}-${idx}`
+            o.item_id ?? o.id ?? o.itemId ?? `menu-${Date.now()}-${idx}`,
           );
           const imageRaw = o.image_url ?? o.imageUrl ?? o.image?.url ?? o.image;
           const imageUrl = !imageRaw
             ? "https://placehold.co/300x300"
             : String(imageRaw).startsWith("http")
-            ? String(imageRaw)
-            : `${API_BASE}${
-                String(imageRaw).startsWith("/") ? "" : "/"
-              }${String(imageRaw)}`;
+              ? String(imageRaw)
+              : `${API_BASE}${
+                  String(imageRaw).startsWith("/") ? "" : "/"
+                }${String(imageRaw)}`;
 
           const isVegetarian =
             o.is_vegetarian === true ||
@@ -297,7 +297,7 @@ export function MenuContent({
               (isVegetarian ? "veg" : "non_veg"),
             preparationTime: o.preparation_time ?? o.preparationTime ?? null,
             hasSpiceLevels: normalizeBool(
-              o.has_spice_levels ?? o.hasSpiceLevels
+              o.has_spice_levels ?? o.hasSpiceLevels,
             ),
             customizationNames:
               o.customizationNames ||
@@ -345,7 +345,7 @@ export function MenuContent({
   // Track loading state per item
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({});
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>(
-    {}
+    {},
   );
 
   const getQty = (itemId: string) => itemQuantities[itemId] || 1;
@@ -441,7 +441,7 @@ export function MenuContent({
 
   const handleCustomizationConfirm = (
     item: MenuItem,
-    selectedOptions: any[]
+    selectedOptions: any[],
   ) => {
     const quantityToAdd = getQty(item.id);
 
@@ -533,8 +533,8 @@ export function MenuContent({
         enableCartWidget && layoutMode !== "split"
           ? "pb-24"
           : layoutMode !== "split"
-          ? "pb-4"
-          : ""
+            ? "pb-4"
+            : "",
       )}
     >
       <header className="sticky top-0 bg-background/80 backdrop-blur-sm z-10 p-4 space-y-4 border-b">
@@ -586,7 +586,7 @@ export function MenuContent({
       <main
         className={cn(
           "flex-1 flex flex-col min-h-0",
-          layoutMode === "default" && "p-4"
+          layoutMode === "default" && "p-4",
         )}
       >
         {!canAdd && renderNoTableWarning()}
@@ -605,7 +605,7 @@ export function MenuContent({
                     className={cn(
                       "justify-start font-normal",
                       selectedCategory === "all" &&
-                        "bg-accent shadow-sm font-medium"
+                        "bg-accent shadow-sm font-medium",
                     )}
                     onClick={() => setSelectedCategory("all")}
                   >
@@ -623,7 +623,7 @@ export function MenuContent({
                       className={cn(
                         "justify-start font-normal",
                         selectedCategory === category.name.toLowerCase() &&
-                          "bg-accent shadow-sm font-medium"
+                          "bg-accent shadow-sm font-medium",
                       )}
                       onClick={() =>
                         setSelectedCategory(category.name.toLowerCase())
@@ -649,10 +649,15 @@ export function MenuContent({
                     <Card
                       key={item.id}
                       className={cn(
-                        "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer bg-background",
-                        !item.isAvailable && "opacity-60"
+                        "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 bg-background",
+                        !item.isAvailable && "opacity-60",
+                        layoutMode !== "split" && "cursor-pointer",
                       )}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={
+                        layoutMode === "split"
+                          ? undefined
+                          : () => setSelectedItem(item)
+                      }
                     >
                       <CardContent className="p-0">
                         <div className="p-3 space-y-2">
@@ -672,7 +677,7 @@ export function MenuContent({
                                       // Sort by price
                                       const sortedPrices = primaryOptions
                                         .map(
-                                          (o) => item.price + o.priceModifier
+                                          (o) => item.price + o.priceModifier,
                                         )
                                         .sort((a, b) => a - b);
 
@@ -694,7 +699,7 @@ export function MenuContent({
 
                                       // Otherwise show range "₹20 - ₹40" or "From ₹20"
                                       return `₹${sortedPrices[0].toFixed(
-                                        0
+                                        0,
                                       )} - ₹${sortedPrices[
                                         sortedPrices.length - 1
                                       ].toFixed(0)}`;
@@ -798,7 +803,7 @@ export function MenuContent({
                     "rounded-full whitespace-nowrap flex items-center gap-2",
                     selectedCategory === "all"
                       ? "bg-primary text-primary-foreground"
-                      : "bg-card"
+                      : "bg-card",
                   )}
                   onClick={() => setSelectedCategory("all")}
                 >
@@ -816,7 +821,7 @@ export function MenuContent({
                       "rounded-full whitespace-nowrap flex items-center gap-2",
                       selectedCategory === category.name.toLowerCase()
                         ? "bg-primary text-primary-foreground"
-                        : "bg-card"
+                        : "bg-card",
                     )}
                     onClick={() =>
                       setSelectedCategory(category.name.toLowerCase())
@@ -835,7 +840,7 @@ export function MenuContent({
                   key={item.id}
                   className={cn(
                     "overflow-hidden rounded-xl shadow-sm transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer",
-                    !item.isAvailable && "opacity-60"
+                    !item.isAvailable && "opacity-60",
                   )}
                   onClick={() => setSelectedItem(item)}
                 >
@@ -1073,7 +1078,7 @@ export function MenuContent({
                 className={cn(
                   "w-full justify-start text-left h-12 text-base",
                   selectedSpiceLevel === level &&
-                    "border-primary bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                    "border-primary bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary",
                 )}
                 onClick={() => setSelectedSpiceLevel(level)}
               >
@@ -1083,7 +1088,7 @@ export function MenuContent({
                       "w-4 h-4 rounded-full border border-primary mr-3 flex items-center justify-center",
                       selectedSpiceLevel === level
                         ? "bg-primary"
-                        : "bg-transparent"
+                        : "bg-transparent",
                     )}
                   >
                     {selectedSpiceLevel === level && (
