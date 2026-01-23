@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { Armchair, MoveHorizontal, CheckCheck } from "lucide-react";
 import type { TableStatus as TableStatusType } from "@/lib/types";
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 export function TableStatus() {
@@ -44,6 +44,12 @@ export function TableStatus() {
   const [isMoving, setIsMoving] = useState(false);
   const [flippedTableId, setFlippedTableId] = useState<number | null>(null);
 
+  // New State for Clear Dialog
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [tableToClear, setTableToClear] = useState<TableStatusType | null>(
+    null,
+  );
+
   useEffect(() => {
     console.log("[DEBUG] TableStatus received:", tableStatuses);
   }, [tableStatuses]);
@@ -62,9 +68,15 @@ export function TableStatus() {
     }
   };
 
+  const pathname = usePathname();
+
   const handleTableClick = (tableNumber: string) => {
     if (slug) {
-      router.push(`/${slug}/dashboard/tables/${tableNumber}`);
+      const isSupervisor = pathname?.includes("/supervisor");
+      const basePath = isSupervisor
+        ? `/${slug}/supervisor/dashboard`
+        : `/${slug}/dashboard`;
+      router.push(`${basePath}/tables/${tableNumber}`);
     }
   };
 
@@ -128,14 +140,14 @@ export function TableStatus() {
                     <div
                       className={cn(
                         "relative w-full h-full transition-all duration-500 transform-style-3d",
-                        isFlipped ? "rotate-y-180" : ""
+                        isFlipped ? "rotate-y-180" : "",
                       )}
                     >
                       {/* FRONT SIDE */}
                       <Card
                         className={cn(
                           "absolute w-full h-full backface-hidden flex flex-col items-center justify-between p-2 border-2 shadow-sm",
-                          getStatusStyles(table.status)
+                          getStatusStyles(table.status),
                         )}
                       >
                         <div className="flex flex-col items-center gap-1 mt-1 relative w-full h-full justify-center">
@@ -185,20 +197,10 @@ export function TableStatus() {
                                 variant="secondary"
                                 size="icon"
                                 className="h-6 w-6 bg-green-600/20 hover:bg-green-600/40 text-green-700 dark:text-green-300 rounded-full border border-green-600/30"
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  if (
-                                    confirm(
-                                      `Clear Table ${table.tableNumber} and finish session?`
-                                    )
-                                  ) {
-                                    await clearTableSession(table.id);
-                                    toast({
-                                      title: "Table Cleared",
-                                      description:
-                                        "Session finished and table is now available.",
-                                    });
-                                  }
+                                  setTableToClear(table);
+                                  setIsClearModalOpen(true);
                                 }}
                               >
                                 <CheckCheck className="w-3 h-3" />
@@ -227,7 +229,7 @@ export function TableStatus() {
                                 "border-0 text-[10px] h-5 mt-0.5 font-bold px-1",
                                 isPaidOccupied
                                   ? "bg-blue-600/20 text-blue-900 dark:text-blue-100"
-                                  : "bg-yellow-500/70"
+                                  : "bg-yellow-500/70",
                               )}
                             >
                               {isOccupied &&
@@ -254,7 +256,7 @@ export function TableStatus() {
                       {/* BACK SIDE (Payment) */}
                       <Card
                         className={cn(
-                          "absolute w-full h-full backface-hidden rotate-y-180 bg-white dark:bg-zinc-900 border-2 border-primary flex flex-col items-center justify-center p-2 shadow-lg"
+                          "absolute w-full h-full backface-hidden rotate-y-180 bg-white dark:bg-zinc-900 border-2 border-primary flex flex-col items-center justify-center p-2 shadow-lg",
                         )}
                       >
                         <div className="flex flex-col items-center gap-2 w-full h-full">
@@ -337,7 +339,7 @@ export function TableStatus() {
               {tableStatuses
                 .filter((t) => t.status === "Empty" && t.isAvailable)
                 .sort(
-                  (a, b) => parseInt(a.tableNumber) - parseInt(b.tableNumber)
+                  (a, b) => parseInt(a.tableNumber) - parseInt(b.tableNumber),
                 )
                 .map((target) => (
                   <Button
@@ -372,6 +374,43 @@ export function TableStatus() {
                 ))}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Confirmation Dialog */}
+      <Dialog open={isClearModalOpen} onOpenChange={setIsClearModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clear Table {tableToClear?.tableNumber}?</DialogTitle>
+            <DialogDescription>
+              This will finish the session and make the table available for new
+              customers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={async () => {
+                if (tableToClear) {
+                  await clearTableSession(tableToClear.id);
+                  toast({
+                    title: "Table Cleared",
+                    description: "Session finished and table is now available.",
+                  });
+                  setIsClearModalOpen(false);
+                }
+              }}
+            >
+              Confirm & Clear
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

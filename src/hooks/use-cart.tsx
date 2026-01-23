@@ -91,7 +91,7 @@ interface CartContextType {
   getTotalPrice: () => number;
   placeOrder: (
     total: number,
-    customer: { name: string; phone: string; email?: string }
+    customer: { name: string; phone: string; email?: string },
   ) => Promise<boolean>;
   repeatOrder: (orderId: string) => Promise<void>;
   pastOrders: PastOrder[];
@@ -100,14 +100,14 @@ interface CartContextType {
   updateKitchenOrderStatus: (
     orderId: string,
     from: KitchenStatus,
-    to: KitchenStatus
+    to: KitchenStatus,
   ) => void;
   requestPayment: (orderId: string, method: "Cash" | "UPI") => Promise<void>;
   approvePayment: (orderId: string) => Promise<void>;
   updatePaymentMethod: (
     orderId: string,
     method: string,
-    status?: string
+    status?: string,
   ) => Promise<void>;
   settleTable: (tableId: number | string, method: string) => Promise<void>;
   cancelOrder: (orderId: string) => Promise<void>;
@@ -127,7 +127,7 @@ interface CartContextType {
     contactNumber?: string,
     fssaiLicNo?: string,
     gstin?: string,
-    caEmail?: string
+    caEmail?: string,
   ) => Promise<void>;
   zomatoRestaurantId: string;
   swiggyRestaurantId: string;
@@ -172,7 +172,7 @@ interface CartContextType {
   isTablesLoading: boolean;
   fetchRelevantOrders: (
     tokenOverride?: string,
-    tableIdOverride?: string
+    tableIdOverride?: string,
   ) => Promise<void>;
   advancedAnalytics: AdvancedAnalytics | null;
   fetchAdvancedAnalytics: (start?: number, end?: number) => Promise<void>;
@@ -262,7 +262,7 @@ const mapBackendOrderToPastOrder = (order: BackendOrder): PastOrder => ({
 });
 
 const mapBackendOrderToKitchenOrder = (
-  order: BackendOrder
+  order: BackendOrder,
 ): KitchenOrder & { created_at: number } => {
   const createdAt = Number(order.created_at) || Date.now();
   return {
@@ -317,10 +317,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [swiggyRestaurantId, setSwiggyRestaurantId] = useState("");
   const [restaurantName, setRestaurantName] = useState<string | null>(null);
   const [restaurantAddress, setRestaurantAddress] = useState<string | null>(
-    null
+    null,
   );
   const [restaurantTagline, setRestaurantTagline] = useState<string | null>(
-    null
+    null,
   );
   const [contactEmail, setContactEmail] = useState<string | null>(null);
   const [contactNumber, setContactNumber] = useState<string | null>(null);
@@ -376,7 +376,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [restaurantId, setRestaurantIdState] = useState<string | null>(null);
   const [tableId, setTableId] = useState<string | null>(null);
   const [restaurantSlug, setRestaurantSlugState] = useState<string | null>(
-    null
+    null,
   );
   const [tableToken, setTableTokenState] = useState<string | null>(null);
   const [orderFilters, setOrderFilters] = useState<{
@@ -404,7 +404,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchAdvancedAnalytics = useCallback(
     async (start?: number, end?: number) => {
-      if (!hasAuthToken()) return;
+      // PERMISSION CHECK: Only Admin/SuperAdmin can access advanced analytics
+      const role = getStoredRole();
+      if (!hasAuthToken() || (role !== "admin" && role !== "super_admin"))
+        return;
 
       try {
         let url = `${API_BASE}/orders/analytics/advanced`;
@@ -423,7 +426,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         console.error("[useCart] fetchAdvancedAnalytics error:", err);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -442,7 +445,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     ) {
       console.log(
         "[useCart] Skipping fetchSettings due to invalid restaurantId:",
-        restaurantId
+        restaurantId,
       );
       return;
     }
@@ -506,7 +509,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (restaurantId) {
       console.log(
         "[useCart] restaurantId changed, fetching settings for:",
-        restaurantId
+        restaurantId,
       );
       fetchSettings();
     }
@@ -515,7 +518,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // --- API Fetching Functions ---
   const extractArrayFromResponse = (
     responseData: any,
-    context: string
+    context: string,
   ): any[] => {
     if (Array.isArray(responseData)) {
       //console.log(`[DEBUG ${context}] Response is direct array:`, responseData.length);
@@ -547,14 +550,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     console.warn(
       `[DEBUG ${context}] Response not array or standard wrapper:`,
-      responseData
+      responseData,
     );
     return [];
   };
 
   const fetchTables = useCallback(async (silent = false) => {
     const role = getStoredRole();
-    if (role !== "admin") {
+    if (role !== "admin" && role !== "supervisor" && role !== "super_admin") {
       setBackendTables([]);
       setIsTablesLoading(false);
       return;
@@ -582,6 +585,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchKitchenOrders = useCallback(async () => {
+    // PERMISSION CHECK: Only Admin, SuperAdmin, or Kitchen staff can access kitchen orders
+    // Supervisors do NOT need this data on their dashboard.
+    const role = getStoredRole();
+    if (
+      role !== "admin" &&
+      role !== "super_admin" &&
+      role !== "kitchen" &&
+      role !== "waiter" // Waiters might need it? Kept safe, but mainly excluding Supervisor if not needed.
+    ) {
+      // Explicitly excluding 'supervisor' by omission, or just checking for allowed roles.
+      // If Supervisor needs it, add it back. User requested removal.
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/orders/kitchen/active`, {
         headers: { ...authHeaders() },
@@ -598,7 +615,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const responseData = await res.json();
       const orders: BackendOrder[] = extractArrayFromResponse(
         responseData,
-        "fetchKitchenOrders"
+        "fetchKitchenOrders",
       );
 
       if (!Array.isArray(orders)) {
@@ -622,7 +639,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       const sortByDateDesc = (
         a: { created_at: number },
-        b: { created_at: number }
+        b: { created_at: number },
       ) => b.created_at - a.created_at;
 
       newO.sort(sortByDateDesc);
@@ -658,7 +675,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       };
 
       const isAdminUser = hasAuthToken();
-      const isDashboard = pathname?.includes("/dashboard");
+      const isDashboard =
+        pathname?.includes("/dashboard") ||
+        pathname?.includes("/supervisor/dashboard");
       const currentSessionToken = tokenOverride || sessionToken;
 
       // Use Admin Mode ONLY if user is Admin AND on Dashboard
@@ -756,7 +775,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
         const orders: BackendOrder[] = extractArrayFromResponse(
           responseData,
-          `fetchRelevantOrders`
+          `fetchRelevantOrders`,
         );
 
         let filteredOrders = orders;
@@ -792,11 +811,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setPastOrders([]);
       }
     },
-    [sessionToken, tableNumber, toast, orderFilters, pathname]
+    [sessionToken, tableNumber, toast, orderFilters, pathname],
   );
 
   // --- NEW: Fetch Active Orders (Unfiltered by Date) for Table Status ---
   const fetchActiveOrders = useCallback(async () => {
+    const role = getStoredRole();
     if (!hasAuthToken()) return; // Only for admins/staff usually
 
     try {
@@ -818,7 +838,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const responseData = await res.json();
       const orders: BackendOrder[] = extractArrayFromResponse(
         responseData,
-        "fetchActiveOrders"
+        "fetchActiveOrders",
       );
 
       // We only need this for calculating occupancy, so raw mapping is fine
@@ -827,7 +847,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       console.log(
         "[DEBUG ACTIVE] Fetched",
         mapped.length,
-        "active orders for status check"
+        "active orders for status check",
       );
     } catch (err) {
       console.error("[useCart] Failed to fetch active orders:", err);
@@ -921,8 +941,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
                 customer_name: data.customerName,
                 customer_phone: data.customerPhone,
               }
-            : t
-        )
+            : t,
+        ),
       );
       if (hasAuthToken()) {
         fetchTables(true);
@@ -1005,14 +1025,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (isOccupied) {
           // Check if ALL active orders are paid
           const allPaid = tableOrders.every(
-            (o) => o.paymentStatus === "Approved"
+            (o) => o.paymentStatus === "Approved",
           );
           status = allPaid ? "Paid & Occupied" : "Occupied";
         }
 
         const totalAmount = tableOrders.reduce(
           (sum, o) => sum + (o.total || 0),
-          0
+          0,
         );
 
         // Calculate remaining outstanding (unpaid) amount
@@ -1059,7 +1079,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       // We still fetch relevant orders (which will return empty/past orders if no table)
       fetchRelevantOrders();
     },
-    [fetchRelevantOrders]
+    [fetchRelevantOrders],
   );
 
   const updateSettings = useCallback(
@@ -1076,7 +1096,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       newContactNumber?: string,
       newFssaiLicNo?: string,
       newGstin?: string,
-      newCaEmail?: string
+      newCaEmail?: string,
     ) => {
       if (!hasAuthToken()) return;
       // Update local state
@@ -1100,7 +1120,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         console.log(
-          `[DEBUG] Saving settings: Tax=${newTax}, Discount=${newDiscount}, UPI=${newUpiId}`
+          `[DEBUG] Saving settings: Tax=${newTax}, Discount=${newDiscount}, UPI=${newUpiId}`,
         );
         // Call the new unified settings endpoint
         const body: any = {
@@ -1156,7 +1176,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           updatedRest.slug !== restaurantSlug
         ) {
           console.log(
-            `[DEBUG SLUG] Slug changed from ${restaurantSlug} to ${updatedRest.slug}`
+            `[DEBUG SLUG] Slug changed from ${restaurantSlug} to ${updatedRest.slug}`,
           );
           toast({
             title: "URL Changed!",
@@ -1183,7 +1203,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast]
+    [toast],
   );
 
   // Backward compatibility wrapper for setTaxRate
@@ -1191,7 +1211,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     async (newRate: number) => {
       await updateSettings(newRate, discountRate, upiId);
     },
-    [updateSettings, discountRate, upiId]
+    [updateSettings, discountRate, upiId],
   );
 
   const setMenuItems = useCallback((items: MenuItem[]) => {
@@ -1274,7 +1294,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         description: `${item.name} added.`,
       });
     },
-    [toast, areItemsEqual]
+    [toast, areItemsEqual],
   );
 
   const removeFromCart = useCallback(
@@ -1296,7 +1316,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         variant: "destructive",
       });
     },
-    [toast]
+    [toast],
   );
 
   const updateQuantity = useCallback(
@@ -1317,7 +1337,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           if (!found) {
             // Fallback to ID match
             updated = prev.map((i) =>
-              i.id === identifier ? { ...i, quantity } : i
+              i.id === identifier ? { ...i, quantity } : i,
             );
           }
 
@@ -1326,7 +1346,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [removeFromCart]
+    [removeFromCart],
   );
 
   const updateItemInstructions = useCallback(
@@ -1344,14 +1364,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           updated = prev.map((i) =>
             i.id === identifier
               ? { ...i, specialInstructions: instructions }
-              : i
+              : i,
           );
         }
         writeToStorage("cart", updated);
         return updated;
       });
     },
-    []
+    [],
   );
 
   const clearCart = useCallback(() => {
@@ -1364,11 +1384,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       cart.reduce((total, item) => {
         const customizationTotal = (item.customizations || []).reduce(
           (sum, c) => sum + (Number(c.price) || 0),
-          0
+          0,
         );
         return total + (item.price + customizationTotal) * item.quantity;
       }, 0),
-    [cart]
+    [cart],
   );
 
   // --- REPEAT ORDER FUNCTION ---
@@ -1395,7 +1415,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         // 2. Match past items with live menu
         orderToRepeat.items.forEach((pastItem) => {
           const liveItemRaw = menuArray.find(
-            (m) => String(m.item_id || m.id) === String(pastItem.id)
+            (m) => String(m.item_id || m.id) === String(pastItem.id),
           );
 
           if (liveItemRaw) {
@@ -1443,7 +1463,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             const newCart = [...prevCart];
             itemsToAdd.forEach((newItem) => {
               const existingIndex = newCart.findIndex(
-                (i) => i.id === newItem.id
+                (i) => i.id === newItem.id,
               );
               if (existingIndex > -1) {
                 newCart[existingIndex].quantity += newItem.quantity;
@@ -1471,7 +1491,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         setIsCartLoading(false);
       }
     },
-    [pastOrders, toast, router]
+    [pastOrders, toast, router],
   );
 
   // --- Order API Functions ---
@@ -1480,7 +1500,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const placeOrder = useCallback(
     async (
       total: number,
-      customer: { name: string; phone: string; email?: string }
+      customer: { name: string; phone: string; email?: string },
     ): Promise<boolean> => {
       if (isSubmittingRef.current) {
         //console.log('[DEBUG PLACE ORDER] Ignoring duplicate request');
@@ -1521,7 +1541,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         (o) =>
           o.tableNumber === tableId && // Checking against tableId (stored as tableNumber in partial mapped object? No, pastOrder.tableNumber maps to order.table_id)
           o.status !== "Completed" &&
-          o.status !== "Cancelled"
+          o.status !== "Cancelled",
       );
       // Correction: mapBackendOrderToPastOrder line 172: tableNumber: String(order.table_id).
       // So checking o.tableNumber === tableId is correct (both strings of ID).
@@ -1601,7 +1621,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
         // Refresh orders
         console.log(
-          "[DEBUG PLACE ORDER] Fetching orders after successful placement..."
+          "[DEBUG PLACE ORDER] Fetching orders after successful placement...",
         );
         await fetchRelevantOrders();
 
@@ -1634,7 +1654,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       pastOrders,
       isCartLoading,
       sessionToken,
-    ]
+    ],
   );
 
   // --- Admin/Kitchen Order Actions ---
@@ -1657,7 +1677,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log(
-        `[DEBUG updateStatus] Requesting change to: ${newBackendStatus} for order ${orderId}`
+        `[DEBUG updateStatus] Requesting change to: ${newBackendStatus} for order ${orderId}`,
       );
 
       try {
@@ -1685,7 +1705,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
 
         console.log(
-          "[DEBUG updateStatus] Forcing fetchKitchenOrders after successful update."
+          "[DEBUG updateStatus] Forcing fetchKitchenOrders after successful update.",
         );
         fetchKitchenOrders();
       } catch (err) {
@@ -1697,7 +1717,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchKitchenOrders]
+    [toast, fetchKitchenOrders],
   );
 
   const requestPayment = useCallback(
@@ -1712,7 +1732,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
               paymentStatus: "Requested",
               paymentMethod: method,
             }),
-          }
+          },
         );
 
         if (!res.ok) throw new Error("Failed to request payment");
@@ -1738,7 +1758,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchRelevantOrders]
+    [toast, fetchRelevantOrders],
   );
 
   const approvePayment = useCallback(
@@ -1746,7 +1766,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (!hasAuthToken()) return;
 
       console.log(
-        `[DEBUG approvePayment] Approving payment for order ${orderId}`
+        `[DEBUG approvePayment] Approving payment for order ${orderId}`,
       );
 
       try {
@@ -1782,7 +1802,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchRelevantOrders]
+    [toast, fetchRelevantOrders],
   );
 
   const updatePaymentMethod = useCallback(
@@ -1812,7 +1832,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchRelevantOrders]
+    [toast, fetchRelevantOrders],
   );
 
   const settleTable = useCallback(
@@ -1824,7 +1844,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         (o) =>
           o.tableId === idStr &&
           o.paymentStatus !== "Approved" &&
-          o.status !== "Cancelled"
+          o.status !== "Cancelled",
       );
 
       if (unpaidOrders.length === 0) {
@@ -1864,14 +1884,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [activeOrders, toast, fetchRelevantOrders]
+    [activeOrders, toast, fetchRelevantOrders],
   );
 
   const cancelOrder = useCallback(
     async (orderId: string) => {
       const isAdminUser = hasAuthToken();
       const isMyTableOrder = pastOrders.some(
-        (o) => o.id === orderId && o.tableNumber === tableNumber
+        (o) => o.id === orderId && o.tableNumber === tableNumber,
       );
 
       if (!isAdminUser && !isMyTableOrder) {
@@ -1905,7 +1925,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchRelevantOrders, pastOrders, tableNumber]
+    [toast, fetchRelevantOrders, pastOrders, tableNumber],
   );
 
   // --- Table API Function ---
@@ -1917,7 +1937,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log(
-        `[DEBUG] Attempting to create table: Number=${tableNumStr}, Capacity=${capacityNum}`
+        `[DEBUG] Attempting to create table: Number=${tableNumStr}, Capacity=${capacityNum}`,
       );
 
       const authUser = getStoredRole()
@@ -1974,7 +1994,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
     },
-    [toast, fetchTables]
+    [toast, fetchTables],
   );
 
   const deleteTable = useCallback(
@@ -2016,7 +2036,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
     },
-    [toast, fetchTables]
+    [toast, fetchTables],
   );
 
   const clearTableSession = useCallback(
@@ -2044,7 +2064,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     },
-    [toast, fetchTables, fetchActiveOrders]
+    [toast, fetchTables, fetchActiveOrders],
   );
 
   const updateSessionTotal = useCallback(
@@ -2059,7 +2079,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
               ...authHeaders(),
             },
             body: JSON.stringify({ total: newTotal }),
-          }
+          },
         );
 
         if (!res.ok) {
@@ -2073,7 +2093,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         toast({
           title: "Total Updated",
           description: `Session total has been overridden to ₹${newTotal.toFixed(
-            2
+            2,
           )}`,
         });
       } catch (err) {
@@ -2086,7 +2106,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         throw err;
       }
     },
-    [fetchRelevantOrders, toast]
+    [fetchRelevantOrders, toast],
   );
 
   // --- Analytics Calculation (Local - admin only) ---
@@ -2097,7 +2117,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     // Only count Approved orders for Revenue
     const approvedOrders = pastOrders.filter(
-      (o) => o.paymentStatus === "Approved"
+      (o) => o.paymentStatus === "Approved",
     );
 
     // For "New Orders" count, we should arguably count ALL orders (including pending)
@@ -2120,12 +2140,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     // Filter orders by date
     const periodOrders = approvedOrders.filter(
-      (o) => o.date >= start && o.date <= end
+      (o) => o.date >= start && o.date <= end,
     );
 
     const totalRevenue = periodOrders.reduce(
       (sum, order) => sum + order.total,
-      0
+      0,
     );
 
     // Count unique sessions instead of total orders
@@ -2160,7 +2180,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const nowFake = toISTDisplayDate(Date.now());
     const approvedOrders = pastOrders.filter(
-      (o) => o.paymentStatus === "Approved"
+      (o) => o.paymentStatus === "Approved",
     );
 
     const start = advancedDateRange?.from || startOfToday();
@@ -2185,7 +2205,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         // We might need to ensure we cover the whole range in hours
         dateData = eachHourOfInterval(intervalFake).reduce(
           (acc, hour) => ({ ...acc, [format(hour, "HH:00")]: 0 }),
-          {}
+          {},
         );
       } catch (e) {
         dateData = {};
@@ -2196,7 +2216,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       formatKey = "MMM d";
       dateData = eachDayOfInterval(intervalFake).reduce(
         (acc, day) => ({ ...acc, [format(day, "MMM d")]: 0 }),
-        {}
+        {},
       );
     } else {
       // Monthly
@@ -2204,7 +2224,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       formatKey = "MMM yyyy";
       dateData = eachMonthOfInterval(intervalFake).reduce(
         (acc, month) => ({ ...acc, [format(month, "MMM yyyy")]: 0 }),
-        {}
+        {},
       );
     }
 
@@ -2212,7 +2232,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const endEpoch = end.getTime();
 
     const filteredOrders = approvedOrders.filter(
-      (o) => o.date >= startEpoch && o.date <= endEpoch
+      (o) => o.date >= startEpoch && o.date <= endEpoch,
     );
 
     filteredOrders.forEach((order) => {
@@ -2239,7 +2259,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const nowFake = toISTDisplayDate(Date.now());
     const approvedOrders = pastOrders.filter(
-      (o) => o.paymentStatus === "Approved"
+      (o) => o.paymentStatus === "Approved",
     );
 
     const start = advancedDateRange?.from
@@ -2250,7 +2270,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       : Date.now();
 
     const periodOrders = approvedOrders.filter(
-      (o) => o.date >= start && o.date <= end
+      (o) => o.date >= start && o.date <= end,
     );
 
     const stats: Record<string, { value: number; count: number }> = {};
@@ -2297,7 +2317,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         throw err;
       }
     },
-    [fetchTables, fetchActiveOrders]
+    [fetchTables, fetchActiveOrders],
   );
 
   const refreshTables = useCallback(
@@ -2305,7 +2325,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       await fetchTables(silent);
       await fetchActiveOrders();
     },
-    [fetchTables, fetchActiveOrders]
+    [fetchTables, fetchActiveOrders],
   );
 
   useEffect(() => {
@@ -2324,7 +2344,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     // Load customer details from localStorage
     const storedCustomer = safeJsonParse<{ name: string; phone: string }>(
-      localStorage.getItem("Five_petals_customer")
+      localStorage.getItem("Five_petals_customer"),
     );
 
     if (storedCustomer) {
@@ -2380,10 +2400,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (adminUser.restaurantId) {
           console.log(
             "[DEBUG INIT] using adminUser restaurantId:",
-            adminUser.restaurantId
+            adminUser.restaurantId,
           );
           setRestaurantIdState(
-            String(adminUser.restaurantId).replace(/^"|"$/g, "")
+            String(adminUser.restaurantId).replace(/^"|"$/g, ""),
           );
         }
       } catch (e) {}

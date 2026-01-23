@@ -88,7 +88,7 @@ function SessionDetails({
   onUpdateTotal: (sessionId: string, newTotal: number) => void;
 }) {
   const [overrideAmount, setOverrideAmount] = useState<string>(
-    group.total.toString()
+    group.total.toString(),
   );
   const [isEditing, setIsEditing] = useState(false);
 
@@ -101,7 +101,7 @@ function SessionDetails({
         orderType: order.orderType,
         orderNumber: order.orderNumber,
         spiceLevel: (item as any).spiceLevel,
-      }))
+      })),
     );
   }, [group.orders]);
 
@@ -249,7 +249,7 @@ function SessionDetails({
                           "font-bold text-lg",
                           parseFloat(overrideAmount) !== group.total
                             ? "text-blue-600"
-                            : ""
+                            : "",
                         )}
                       >
                         ₹{group.total.toFixed(2)}
@@ -372,7 +372,7 @@ export function RecentOrders() {
           ...item,
           orderId: order.id,
           orderType: order.orderType,
-        }))
+        })),
       );
 
       const sessionOrder = {
@@ -492,7 +492,7 @@ export function RecentOrders() {
       formData.append(
         "file",
         blob,
-        `Orders_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`
+        `Orders_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`,
       );
       formData.append("reportType", "orders");
       const dateRangeStr = dateRange?.from
@@ -513,7 +513,7 @@ export function RecentOrders() {
             Authorization: `Bearer ${token}`,
           },
           body: formData,
-        }
+        },
       );
 
       if (!res.ok) {
@@ -607,7 +607,7 @@ export function RecentOrders() {
 
       const fileName = `Orders_Export_${format(
         new Date(),
-        "yyyy-MM-dd_HH-mm"
+        "yyyy-MM-dd_HH-mm",
       )}.xlsx`;
       XLSX.writeFile(wb, fileName);
 
@@ -655,7 +655,7 @@ export function RecentOrders() {
 
         const approvedOrder = group.find((o) => o.paymentStatus === "Approved");
         const requestedOrder = group.find(
-          (o) => o.paymentStatus === "Requested"
+          (o) => o.paymentStatus === "Requested",
         );
         const anyMethodOrder = group.find((o) => (o as any).paymentMethod);
 
@@ -766,7 +766,7 @@ export function RecentOrders() {
                     dateRange?.from &&
                     `Showing orders from ${format(
                       dateRange.from,
-                      "MMM dd, yyyy"
+                      "MMM dd, yyyy",
                     )}` +
                       (dateRange.to
                         ? ` to ${format(dateRange.to, "MMM dd, yyyy")}`
@@ -810,7 +810,7 @@ export function RecentOrders() {
                       size="sm"
                       className={cn(
                         "h-8 text-xs justify-start text-left font-normal",
-                        !dateRange && "text-muted-foreground"
+                        !dateRange && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-3 w-3" />
@@ -839,32 +839,36 @@ export function RecentOrders() {
                   </PopoverContent>
                 </Popover>
 
-                {/* Excel Export Button */}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleExportExcel}
-                  className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-2"
-                >
-                  <Download className="mr-2 h-3 w-3" />
-                  Excel
-                </Button>
+                {/* Excel Export Button - Hide for Supervisor */}
+                {(!adminUser?.role ||
+                  adminUser.role.toLowerCase() !== "supervisor") && (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleExportExcel}
+                      className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-2"
+                    >
+                      <Download className="mr-2 h-3 w-3" />
+                      Excel
+                    </Button>
 
-                {/* Send to CA Button */}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleSendToCA}
-                  disabled={isSendingEmail}
-                  className="h-8 text-xs bg-blue-600 hover:bg-blue-700 ml-2 text-white"
-                >
-                  {isSendingEmail ? (
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                  ) : (
-                    <Mail className="mr-2 h-3 w-3" />
-                  )}
-                  Send to CA
-                </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSendToCA}
+                      disabled={isSendingEmail}
+                      className="h-8 text-xs bg-blue-600 hover:bg-blue-700 ml-2 text-white"
+                    >
+                      {isSendingEmail ? (
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      ) : (
+                        <Mail className="mr-2 h-3 w-3" />
+                      )}
+                      Send to CA
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -905,7 +909,7 @@ export function RecentOrders() {
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
                                 expandedSessions[group.key] &&
-                                  "bg-muted/40 border-b-0"
+                                  "bg-muted/40 border-b-0",
                               )}
                               onClick={() => toggleExpand(group.key)}
                               style={{ cursor: "pointer" }}
@@ -944,9 +948,9 @@ export function RecentOrders() {
                                       group.platform.toLowerCase() === "zomato"
                                         ? "bg-brand-zomato hover:bg-brand-zomato"
                                         : group.platform.toLowerCase() ===
-                                          "swiggy"
-                                        ? "bg-brand-swiggy hover:bg-brand-swiggy"
-                                        : "bg-blue-600"
+                                            "swiggy"
+                                          ? "bg-brand-swiggy hover:bg-brand-swiggy"
+                                          : "bg-blue-600",
                                     )}
                                   >
                                     {group.platform}
@@ -995,7 +999,7 @@ export function RecentOrders() {
                                           updatePaymentMethod(
                                             group.paymentMethodId,
                                             val,
-                                            "Approved"
+                                            "Approved",
                                           )
                                         }
                                       >

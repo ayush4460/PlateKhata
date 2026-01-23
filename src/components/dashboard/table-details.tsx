@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { generateBillPDF } from "@/lib/bill-generator";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import Image from "next/image";
@@ -35,14 +35,16 @@ import { Separator } from "@/components/ui/separator";
 interface TableDetailsProps {
   tableId: string;
   slug: string;
+  backUrl?: string;
 }
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
 ).replace(/\/$/, "");
 
-export function TableDetails({ tableId, slug }: TableDetailsProps) {
+export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const { adminUser } = useAuth();
   const {
@@ -96,7 +98,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
 
     const targetTableNumber = tableId;
     const foundTable = tableStatuses.find(
-      (t) => t.tableNumber === targetTableNumber
+      (t) => t.tableNumber === targetTableNumber,
     );
 
     if (foundTable) {
@@ -116,7 +118,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       fetchRelevantOrders(undefined, String(foundTable.id));
     } else {
       console.warn(
-        `[TableDetails] Table Number ${targetTableNumber} not found in statuses.`
+        `[TableDetails] Table Number ${targetTableNumber} not found in statuses.`,
       );
     }
   }, [tableId, tableStatuses, isTablesLoading, setTable, setTableId]);
@@ -145,7 +147,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
         !(
           o.paymentStatus === "Approved" &&
           (o.status === "Served" || o.status === "Completed")
-        )
+        ),
     );
   }, [combinedOrders, activeTable, tableId]);
 
@@ -264,7 +266,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     });
 
     return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
+      a.name.localeCompare(b.name),
     );
   }, [pastOrders, optimisticUpdates]);
 
@@ -365,7 +367,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       if (!activeTable.customerName && !activeTable.customerPhone) {
         // Backend empty, check orders
         const firstWithDetails = pastOrders.find(
-          (o) => o.userName || o.userPhone
+          (o) => o.userName || o.userPhone,
         );
         if (firstWithDetails) {
           // Found details in order, update local state (which triggers backend sync)
@@ -395,15 +397,15 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
 
   const totalUnpaidAmount = useMemo(
     () => aggregatedItems.reduce((sum, item) => sum + item.unpaidAmount, 0),
-    [aggregatedItems]
+    [aggregatedItems],
   );
   const totalPaidAmount = useMemo(
     () =>
       aggregatedItems.reduce(
         (sum, item) => sum + item.price * item.paidCount,
-        0
+        0,
       ),
-    [aggregatedItems]
+    [aggregatedItems],
   );
   const totalBillAmount = totalPaidAmount + totalUnpaidAmount;
 
@@ -423,7 +425,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       quantity?: number;
       customizations?: any[];
       uniqueKey?: string; // Passed for optimistic updates
-    }
+    },
   ) => {
     if (!activeTable) {
       toast({ variant: "destructive", title: "Table not loaded" });
@@ -530,7 +532,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       .filter((o) => o.status !== "Cancelled")
       .reduce((sum, o) => {
         const match = o.items.find(
-          (i: any) => getUKey(i) === itemObj.uniqueKey
+          (i: any) => getUKey(i) === itemObj.uniqueKey,
         );
         return sum + (match ? match.quantity : 0);
       }, 0);
@@ -558,7 +560,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       if (diff > 0) {
         // Simple Add
         const fullItem = menuItems.find(
-          (m) => String(m.id) === String(itemObj.itemId)
+          (m) => String(m.id) === String(itemObj.itemId),
         );
         if (fullItem && activeTable) {
           const payload = {
@@ -616,10 +618,10 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                     (c2: any) =>
                       (c1.id && c2.option_id && c1.id === c2.option_id) ||
                       (c1.id && c2.id && c1.id === c2.id) ||
-                      c1.name === c2.name
-                  )
+                      c1.name === c2.name,
+                  ),
                 );
-              }) && !["Served", "Completed", "Cancelled"].includes(o.status)
+              }) && !["Served", "Completed", "Cancelled"].includes(o.status),
           )
           .sort((a, b) => b.date - a.date);
 
@@ -641,8 +643,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                 (c2: any) =>
                   (c1.id && c2.option_id && c1.id === c2.option_id) ||
                   (c1.id && c2.id && c1.id === c2.id) ||
-                  c1.name === c2.name
-              )
+                  c1.name === c2.name,
+              ),
             );
           });
 
@@ -807,12 +809,12 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                 // Check by ID if available, else name
                 (c1.id && c2.option_id && c1.id === c2.option_id) ||
                 (c1.id && c2.id && c1.id === c2.id) ||
-                c1.name === c2.name
-            )
+                c1.name === c2.name,
+            ),
           );
 
           return allMatch;
-        }) && !["Served", "Completed", "Cancelled"].includes(o.status)
+        }) && !["Served", "Completed", "Cancelled"].includes(o.status),
     );
 
     if (!targetOrder) {
@@ -863,7 +865,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
     if (
       hasOtherItems &&
       !confirm(
-        `This action will technically cancel Order #${targetOrder.orderNumber} and re-create it with the remaining items to simulate deletion.\n\nProceed?`
+        `This action will technically cancel Order #${targetOrder.orderNumber} and re-create it with the remaining items to simulate deletion.\n\nProceed?`,
       )
     ) {
       return;
@@ -949,10 +951,10 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
               (c2: any) =>
                 (c1.id && c2.option_id && c1.id === c2.option_id) ||
                 (c1.id && c2.id && c1.id === c2.id) ||
-                c1.name === c2.name
-            )
+                c1.name === c2.name,
+            ),
           );
-        }) && !["Served", "Completed", "Cancelled"].includes(o.status)
+        }) && !["Served", "Completed", "Cancelled"].includes(o.status),
     );
 
     if (targetOrders.length === 0) {
@@ -965,7 +967,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
 
     if (
       !confirm(
-        `Are you sure you want to remove all ${itemObj.quantity} units of this item?`
+        `Are you sure you want to remove all ${itemObj.quantity} units of this item?`,
       )
     ) {
       return;
@@ -999,8 +1001,8 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                   (c2: any) =>
                     (c1.id && c2.option_id && c1.id === c2.option_id) ||
                     (c1.id && c2.id && c1.id === c2.id) ||
-                    c1.name === c2.name
-                )
+                    c1.name === c2.name,
+                ),
               );
             }
             if (spiceMatch && custMatch) {
@@ -1080,7 +1082,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
       // Create a virtual "session order" to aggregate all orders for the bill
       const subtotal = aggregatedItems.reduce(
         (acc, i) => acc + i.totalPrice,
-        0
+        0,
       );
       const tax = subtotal * (taxRate / 100);
       const discount = subtotal * (discountRate / 100);
@@ -1140,19 +1142,25 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
   const handleClearSession = async () => {
     if (
       confirm(
-        "Are you sure you want to clear this table? This will archive current orders and free the table."
+        "Are you sure you want to clear this table? This will archive current orders and free the table.",
       )
     ) {
       const targetId = activeTable ? activeTable.id : Number(tableId);
 
       await clearTableSession(targetId);
-      router.push(`/${slug}/dashboard`);
+
+      // REDIRECT FIX: Check path to determine where to go back
+      if (pathname?.includes("/supervisor/")) {
+        router.push(`/${slug}/supervisor/dashboard`);
+      } else {
+        router.push(`/${slug}/dashboard`);
+      }
     }
   };
 
   const handleMarkPaid = async (method: string) => {
     const unpaidOrders = pastOrders.filter(
-      (o) => o.paymentStatus !== "Approved" && o.status !== "Cancelled"
+      (o) => o.paymentStatus !== "Approved" && o.status !== "Cancelled",
     );
 
     if (unpaidOrders.length === 0) {
@@ -1183,7 +1191,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push(`/${slug}/dashboard`)}
+            onClick={() => router.push(backUrl || `/${slug}/dashboard`)}
             className="hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-all rounded-full h-10 w-10 p-0"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1211,10 +1219,10 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                 activeTable.status === "Empty"
                   ? "bg-status-empty-bg text-status-empty-text border-status-empty-text/20 dark:border-status-empty-text/10"
                   : activeTable.status === "Occupied"
-                  ? "bg-status-occupied-bg text-status-occupied-text border-status-occupied-text/20 dark:border-status-occupied-text/10"
-                  : activeTable.status === "Paid & Occupied"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                  : "bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border-gray-200 dark:border-slate-700"
+                    ? "bg-status-occupied-bg text-status-occupied-text border-status-occupied-text/20 dark:border-status-occupied-text/10"
+                    : activeTable.status === "Paid & Occupied"
+                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                      : "bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border-gray-200 dark:border-slate-700",
               )}
             >
               {activeTable.status === "Empty"
@@ -1331,7 +1339,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                       className={cn(
                         "group relative flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-2xl transition-all duration-300 hover:border-primary/30 dark:hover:border-primary/40 hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-black/20 hover:-translate-y-0.5 overflow-hidden",
                         processingKey === item.uniqueKey &&
-                          "border-primary/30 bg-primary/5"
+                          "border-primary/30 bg-primary/5",
                       )}
                     >
                       <div className="flex flex-col gap-1 min-w-0 pr-4 flex-1">
@@ -1361,7 +1369,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                                     >
                                       {c.name}
                                     </span>
-                                  )
+                                  ),
                                 )}
                             </div>
                           )}
@@ -1406,7 +1414,7 @@ export function TableDetails({ tableId, slug }: TableDetailsProps) {
                               const current = item.quantity || 0;
                               handleDebouncedUpdate(
                                 item,
-                                Math.max(0, current - 1)
+                                Math.max(0, current - 1),
                               );
                             }}
                           >

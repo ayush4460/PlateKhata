@@ -170,7 +170,7 @@ export type AnalyticsPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';
 export interface AdminUser {
   id: string;
   email: string;
-  role: 'admin' | 'kitchen';
+  role: 'admin' | 'kitchen' | 'supervisor';
   restaurantId?: string | number; // Added restaurantId
   restaurantSlug?: string; // Added restaurantSlug
   fullName?: string;

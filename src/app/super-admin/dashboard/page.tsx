@@ -40,6 +40,7 @@ import {
   Trash2,
   Power,
   ChefHat,
+  UserCog,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -156,7 +157,9 @@ export default function SuperAdminDashboard() {
 
   // Enhanced state for generic user creation
   const [isUserOpen, setIsUserOpen] = useState(false);
-  const [targetRole, setTargetRole] = useState<"admin" | "kitchen">("admin");
+  const [targetRole, setTargetRole] = useState<
+    "admin" | "kitchen" | "supervisor"
+  >("admin"); // 2. Updated targetRole type
 
   const [userForm, setUserForm] = useState({
     username: "",
@@ -175,9 +178,16 @@ export default function SuperAdminDashboard() {
         restaurantId: selectedRest.restaurant_id,
         role: targetRole,
       });
+      // 4. Update toast logic
+      const roleLabel =
+        targetRole === "admin"
+          ? "Admin"
+          : targetRole === "supervisor"
+            ? "Supervisor"
+            : "Kitchen Staff";
       toast({
         title: "Success",
-        description: `${targetRole === "admin" ? "Admin" : "Kitchen Staff"} created`,
+        description: `${roleLabel} created`,
       });
       setIsUserOpen(false);
       setUserForm({ username: "", email: "", password: "", fullName: "" });
@@ -186,7 +196,10 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const openUserDialog = (rest: Restaurant, role: "admin" | "kitchen") => {
+  const openUserDialog = (
+    rest: Restaurant,
+    role: "admin" | "kitchen" | "supervisor",
+  ) => {
     setSelectedRest(rest);
     setTargetRole(role);
     setIsUserOpen(true);
@@ -271,6 +284,12 @@ export default function SuperAdminDashboard() {
                         onClick={() => openUserDialog(rest, "admin")}
                       >
                         <UserPlus className="mr-2 h-4 w-4" /> Create Admin
+                      </DropdownMenuItem>
+                      {/* 3. Add Create Supervisor Item */}
+                      <DropdownMenuItem
+                        onClick={() => openUserDialog(rest, "supervisor")}
+                      >
+                        <UserCog className="mr-2 h-4 w-4" /> Create Supervisor
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => openUserDialog(rest, "kitchen")}
@@ -404,16 +423,28 @@ export default function SuperAdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- CREATE USER DIALOG (Generic for Admin/Kitchen) --- */}
+      {/* --- CREATE USER DIALOG (Generic for Admin/Kitchen/Supervisor) --- */}
       <Dialog open={isUserOpen} onOpenChange={setIsUserOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Create {targetRole === "admin" ? "Admin" : "Kitchen"} Staff
+              {/* 5. Update Title */}
+              Create{" "}
+              {targetRole === "admin"
+                ? "Admin"
+                : targetRole === "supervisor"
+                  ? "Supervisor"
+                  : "Kitchen"}{" "}
+              Staff
             </DialogTitle>
             <DialogDescription>
+              {/* 5. Update Description */}
               Create{" "}
-              {targetRole === "admin" ? "the primary admin" : "kitchen staff"}{" "}
+              {targetRole === "admin"
+                ? "the primary admin"
+                : targetRole === "supervisor"
+                  ? "a supervisor"
+                  : "kitchen staff"}{" "}
               account for <b>{selectedRest?.name}</b>
             </DialogDescription>
           </DialogHeader>
@@ -426,7 +457,11 @@ export default function SuperAdminDashboard() {
                   setUserForm({ ...userForm, fullName: e.target.value })
                 }
                 placeholder={
-                  targetRole === "admin" ? "Manager Name" : "Chef Name"
+                  targetRole === "admin"
+                    ? "Manager Name"
+                    : targetRole === "supervisor"
+                      ? "Supervisor Name"
+                      : "Chef Name"
                 }
               />
             </div>
@@ -440,7 +475,9 @@ export default function SuperAdminDashboard() {
                 placeholder={
                   targetRole === "admin"
                     ? "admin@restaurant.com"
-                    : "chef@restaurant.com"
+                    : targetRole === "supervisor"
+                      ? "supervisor@restaurant.com"
+                      : "chef@restaurant.com"
                 }
               />
             </div>
@@ -453,7 +490,11 @@ export default function SuperAdminDashboard() {
                   setUserForm({ ...userForm, username: e.target.value })
                 }
                 placeholder={
-                  targetRole === "admin" ? "rest_admin" : "rest_chef"
+                  targetRole === "admin"
+                    ? "rest_admin"
+                    : targetRole === "supervisor"
+                      ? "rest_super"
+                      : "rest_chef"
                 }
                 minLength={3}
               />
