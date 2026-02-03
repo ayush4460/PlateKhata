@@ -69,6 +69,20 @@ const getSocketUrl = () => {
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
   try {
     const url = new URL(apiUrl);
+
+    // PRODUCTION FIX: If the API URL points to the frontend domain (Vercel),
+    // we must redirect the socket connection to the actual backend (Render)
+    // because Vercel Serverless Functions do not support WebSocket hostings.
+    if (
+      url.hostname === "platekhata.in" ||
+      url.hostname === "www.platekhata.in"
+    ) {
+      console.log(
+        "[DEBUG SOCKET] Detected production frontend... switching socket to Render backend.",
+      );
+      return "https://platekhata-api.onrender.com";
+    }
+
     // Remove /api/v1 from the end of the pathname
     const newPath = url.pathname.replace(/\/api\/v1\/?$/, "");
     // Return origin + clean path (usually just origin if path was /api/v1)
