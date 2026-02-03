@@ -159,13 +159,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     ) {
       sessionActiveRef.current = true;
     } else {
-      // Only reset if we are sure?
-      // If we just navigated here, it might be false.
-      // But if we have optimistic updates pending, keep it true?
-      // Actually, safer to only set to TRUE when confirmed.
-      // But we rely on it being true during rapid add.
-      // If pastOrders becomes 0 (e.g. cancelled all), we should reset?
-      // Let's trust the Ref's optimistic set, but allow sync to override if backend confirms empty.
       if (
         pastOrders.length === 0 &&
         activeTable &&
@@ -270,6 +263,45 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     );
   }, [pastOrders, optimisticUpdates]);
 
+  // --- Fix Flicker: Self-Healing Optimistic Updates ---
+  // When backend data (aggregatedItems) catches up to optimistic value, clear the overlay.
+  useEffect(() => {
+    if (Object.keys(optimisticUpdates).length === 0) return;
+
+    setOptimisticUpdates((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      aggregatedItems.forEach((item) => {
+        const key = item.uniqueKey;
+        if (next[key] !== undefined) {
+          const rawQty = pastOrders
+            .filter((o) => o.status !== "Cancelled")
+            .reduce((sum, o) => {
+              // Re-match logic
+              const match = o.items.find((i: any) => {
+                const custLabels = i.customizations
+                  ? i.customizations
+                      .map((c: any) => c.name)
+                      .sort()
+                      .join(", ")
+                  : "";
+                const uKey = `${i.id}-${i.spiceLevel || ""}-${custLabels}`;
+                return uKey === key;
+              });
+              return sum + (match ? match.quantity : 0);
+            }, 0);
+
+          if (rawQty === next[key]) {
+            delete next[key];
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [pastOrders, aggregatedItems]);
+
   // --- Sync Customer Details from Backend (Table Status) ---
   useEffect(() => {
     if (activeTable) {
@@ -312,13 +344,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     if (!activeTable || !isDataLoaded) return;
 
     const timeoutId = setTimeout(async () => {
-      // Only update if changed from what backend has?
-      // Or just send update. Backend handles it.
-      // We avoid sending empty default "Admin" if it's not user entered.
-
-      // Compare with current backend state to avoid redundant calls?
-      // activeTable.customerName might lag behind.
-
       if (
         localCustomerName !== activeTable.customerName ||
         localCustomerPhone !== activeTable.customerPhone
@@ -350,8 +375,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
               customerPhone: localCustomerPhone,
             }),
           });
-          // Optional: refresh tables to sync state?
-          // For now, we assume local state is source of truth until refresh.
         } catch (e) {
           console.error("Failed to sync customer details", e);
         }
@@ -410,13 +433,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
   const totalBillAmount = totalPaidAmount + totalUnpaidAmount;
 
   // --- Instant Order Handlers ---
-  // ... (keeping existing handlers - assuming they handle 'itemId' correctly.
-  // NOTE: 'itemId' in handleInstantRemove refers to menu item ID.
-  // If we have split rows for same item ID, removing by ID might be ambiguous if we don't pass unique characteristics.
-  // But for now, user asked for display fix. Handling granular removal of specific variants requires deeper API changes.
-  // The existing 'handleInstantRemove' logic finds "recent order with this item ID".
-  // It might remove the WRONG variant if multiple exist.
-  // However, I will focus on the DISPLAY first as requested.)
 
   const handleInstantAdd = async (
     item: MenuItem & {
@@ -539,8 +555,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
 
     const diff = newQty - currentQty;
 
-    // console.log(`[Debounce Exec] Real: ${currentQty}, Target: ${newQty}, Diff: ${diff}`);
-
     if (diff === 0) {
       // Just clear optimistic if any
       setOptimisticUpdates((prev) => {
@@ -596,7 +610,7 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
           toast({ title: "Quantity Updated", description: "Added items." });
         }
       } else {
-        // Decrease
+        // Decrease with Parallel Execution
         const countToRemove = Math.abs(diff);
         let removedSoFar = 0;
 
@@ -625,16 +639,17 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
           )
           .sort((a, b) => b.date - a.date);
 
+        const cancelOps: Promise<any>[] = [];
+        const recreateOps: (() => Promise<any>)[] = [];
+
+        // Pre-calculate Plan
         for (const order of candidates) {
           if (removedSoFar >= countToRemove) break;
 
-          // Re-find the exact item index or object in this order (to get its Qty)
           const targetItemInOrder = order.items.find((i: any) => {
             if (i.id !== itemObj.itemId) return false;
-            // Compare Spice
             if ((itemObj.spiceLevel || null) !== (i.spiceLevel || null))
               return false;
-            // Compare Customizations
             const uCusts = itemObj.customizations || [];
             const oCusts = i.customizations || [];
             if (uCusts.length !== oCusts.length) return false;
@@ -647,23 +662,20 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
               ),
             );
           });
-
           if (!targetItemInOrder) continue;
 
           const qtyInOrder = targetItemInOrder.quantity;
+          const needed = countToRemove - removedSoFar;
+          const consumed = Math.min(needed, qtyInOrder);
+          removedSoFar += consumed;
+          const remainder = qtyInOrder - consumed;
 
-          // Cancel this order
-          await cancelOrder(order.id);
-          removedSoFar += qtyInOrder;
+          // Plan: Cancel Order
+          cancelOps.push(cancelOrder(order.id));
 
-          // Re-balance logic
+          // Plan: Re-create Items
           const itemsToKeep: any[] = [];
-
-          // 1. Add back OTHER items in this order
           order.items.forEach((oi: any) => {
-            // We need to exclude the SPECIFIC instance we targeted.
-            // Since 'targetItemInOrder' is a reference from 'order.items', we can compare reference?
-            // Yes, usually.
             if (oi !== targetItemInOrder) {
               itemsToKeep.push({
                 itemId: parseInt(oi.id, 10) || oi.id,
@@ -674,21 +686,6 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
               });
             }
           });
-
-          // 2. Add back the remainder of THIS item if we removed too much
-          // Logic:
-          // removing(2). found(5). removedSoFar(5). Excess removed = 3.
-          // But 'removedSoFar' is cumulative.
-          // We need to know how much of THIS specific order's quantity was "consumed" by the removal.
-
-          // 'needed' = countToRemove - (removedSoFar - qtyInOrder)
-          // 'consumed' = min(needed, qtyInOrder)
-          // 'remainder' = qtyInOrder - consumed.
-
-          const previousRemoved = removedSoFar - qtyInOrder;
-          const needed = countToRemove - previousRemoved;
-          const consumed = Math.min(needed, qtyInOrder);
-          const remainder = qtyInOrder - consumed;
 
           if (remainder > 0) {
             itemsToKeep.push({
@@ -702,31 +699,36 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
             });
           }
 
-          // Execute Re-Creation if we have items to keep
-          if (itemsToKeep.length > 0 && activeTable) {
-            const payload = {
-              tableId: activeTable.id,
-              items: itemsToKeep,
-              customerName: localCustomerName || "",
-              customerPhone: localCustomerPhone || "",
-              restaurantId: restaurantId
-                ? parseInt(restaurantId, 10)
-                : undefined,
-              orderType: "addon", // maintain valid type
-            };
-            const token = localStorage.getItem("accessToken");
-            const headers: Record<string, string> = {
-              "Content-Type": "application/json",
-            };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
+          if (itemsToKeep.length > 0) {
+            recreateOps.push(async () => {
+              const payload = {
+                tableId: order.tableId || activeTable?.id,
+                items: itemsToKeep,
+                customerName: order.userName || localCustomerName || "",
+                customerPhone: order.userPhone || localCustomerPhone || "",
+                restaurantId: restaurantId
+                  ? parseInt(restaurantId, 10)
+                  : undefined,
+                orderType: "addon",
+              };
+              const token = localStorage.getItem("accessToken");
+              const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+              };
+              if (token) headers["Authorization"] = `Bearer ${token}`;
 
-            await fetch(`${API_BASE}/orders`, {
-              method: "POST",
-              headers,
-              body: JSON.stringify(payload),
+              await fetch(`${API_BASE}/orders`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+              });
             });
           }
         }
+
+        // Execute Parallel
+        await Promise.all(cancelOps);
+        await Promise.all(recreateOps.map((op) => op()));
       }
 
       if (activeTable) {
@@ -737,15 +739,17 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Update failed" });
-    } finally {
-      setIsProcessing(false);
-      setProcessingKey(null);
-      // Clear Optimistic
+      // Only clear on error
       setOptimisticUpdates((prev) => {
         const n = { ...prev };
         delete n[itemObj.uniqueKey];
         return n;
       });
+    } finally {
+      setIsProcessing(false);
+      setProcessingKey(null);
+      // DO NOT CLEAR OPTIMISTIC STATE HERE.
+      // Let the useEffect above handle cleanup when data matches.
     }
   };
 
@@ -767,174 +771,20 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     }, 600); // 600ms debounce
   };
 
-  const handleInstantRemove = async (item: any) => {
-    const itemId = item.itemId || item;
-    setIsProcessing(true);
-    if (item.uniqueKey) {
-      setProcessingKey(item.uniqueKey);
-      // Optimistic Decrement
-      const currentQty = item.quantity || 1;
+  const handleDeleteAll = async (itemObj: any) => {
+    // itemObj is the aggregated row.
+    const itemId = itemObj.itemId || itemObj.id;
+
+    // 1. Instant Optimistic UI Removal
+    if (itemObj.uniqueKey) {
+      setProcessingKey(itemObj.uniqueKey);
       setOptimisticUpdates((prev) => ({
         ...prev,
-        [item.uniqueKey]: Math.max(0, currentQty - 1),
+        [itemObj.uniqueKey]: 0, // Force to 0 immediately
       }));
     }
 
-    const candidates = [...pastOrders].sort((a, b) => b.date - a.date);
-    const targetOrder = candidates.find(
-      (o) =>
-        o.items.some((i: any) => {
-          if (i.id !== itemId) return false;
-
-          // Compare Spice Level
-          const itemSpice = item.spiceLevel || null;
-          const orderSpice = i.spiceLevel || null;
-          if (itemSpice !== orderSpice) return false;
-
-          // Compare Customizations
-          // Normalize to strings for comparison or check arrays
-          // Frontend 'item' has customizations array. Backend 'i' has customizations array.
-          // They might be different structures or orders.
-          // Let's rely on a simplified comparison: check if all option IDs match.
-
-          const itemCusts = item.customizations || [];
-          const orderCusts = i.customizations || [];
-
-          if (itemCusts.length !== orderCusts.length) return false;
-
-          // Check if every customization in 'item' exists in 'order'
-          const allMatch = itemCusts.every((c1: any) =>
-            orderCusts.some(
-              (c2: any) =>
-                // Check by ID if available, else name
-                (c1.id && c2.option_id && c1.id === c2.option_id) ||
-                (c1.id && c2.id && c1.id === c2.id) ||
-                c1.name === c2.name,
-            ),
-          );
-
-          return allMatch;
-        }) && !["Served", "Completed", "Cancelled"].includes(o.status),
-    );
-
-    if (!targetOrder) {
-      toast({
-        variant: "destructive",
-        title: "No cancelable order found for this item.",
-      });
-      return;
-    }
-
-    // Logic:
-    // 1. Identify valid items to keep.
-    // 2. Cancel original order.
-    // 3. Re-create order with KEEP items in a single batch.
-
-    const itemsToKeep: any[] = [];
-
-    // Iterate through all items in the order to build the replacement payload
-    targetOrder.items.forEach((ordItem: any) => {
-      // Is this the item we are targeting?
-      if (ordItem.id === itemId) {
-        // If this is the target item
-        if (ordItem.quantity > 1) {
-          // Keep it, but decrement
-          itemsToKeep.push({
-            itemId: parseInt(ordItem.id, 10) || ordItem.id,
-            quantity: ordItem.quantity - 1,
-            specialInstructions: ordItem.specialInstructions || null,
-            spiceLevel: ordItem.spiceLevel || null,
-            customizations: ordItem.customizations || undefined,
-          });
-        }
-        // If quantity is 1, we drop it (don't push to itemsToKeep)
-      } else {
-        // Keep other items exactly as is
-        itemsToKeep.push({
-          itemId: parseInt(ordItem.id, 10) || ordItem.id,
-          quantity: ordItem.quantity,
-          specialInstructions: ordItem.specialInstructions || null,
-          spiceLevel: ordItem.spiceLevel || null,
-          customizations: ordItem.customizations || undefined,
-        });
-      }
-    });
-
-    const hasOtherItems = targetOrder.items.length > 1; // Re-evaluate after potential decrement
-
-    if (
-      hasOtherItems &&
-      !confirm(
-        `This action will technically cancel Order #${targetOrder.orderNumber} and re-create it with the remaining items to simulate deletion.\n\nProceed?`,
-      )
-    ) {
-      return;
-    }
-
-    setIsProcessing(true);
-    if (item.uniqueKey) setProcessingKey(item.uniqueKey);
-    try {
-      // Step A: Cancel the original order
-      await cancelOrder(targetOrder.id);
-
-      // Step B: Create new order if there are items to keep
-      if (itemsToKeep.length > 0 && activeTable) {
-        const payload = {
-          tableId: activeTable.id,
-          items: itemsToKeep,
-          customerName: localCustomerName || "",
-          customerPhone: localCustomerPhone || "",
-          restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
-          orderType: "addon", // Re-ordering is effectively an addon or we keep original type? "addon" is safer for existing session.
-        };
-
-        const token = localStorage.getItem("accessToken");
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        await fetch(`${API_BASE}/orders`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        });
-
-        toast({
-          title: "Updated Order",
-          description: `Removed item/decremented quantity.`,
-        });
-      } else {
-        toast({
-          title: "Item removed",
-          description: "Order cancelled (empty).",
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Failed to update order" });
-    } finally {
-      if (activeTable) {
-        await fetchRelevantOrders(undefined, String(activeTable.id));
-      } else {
-        await fetchRelevantOrders();
-      }
-      setProcessingKey(null);
-      if (item.uniqueKey) {
-        setOptimisticUpdates((prev) => {
-          const n = { ...prev };
-          delete n[item.uniqueKey];
-          return n;
-        });
-      }
-    }
-  };
-
-  const handleDeleteAll = async (itemObj: any) => {
-    // itemObj is the aggregated row.
-    const itemId = itemObj.itemId;
-
-    // Find all 'active' orders that contain this SPECIFIC variant
+    // 2. Identify all 'active' orders that contain this SPECIFIC variant
     const targetOrders = pastOrders.filter(
       (o) =>
         o.items.some((i: any) => {
@@ -946,6 +796,7 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
           const uCusts = itemObj.customizations || [];
           const oCusts = i.customizations || [];
           if (uCusts.length !== oCusts.length) return false;
+
           return uCusts.every((c1: any) =>
             oCusts.some(
               (c2: any) =>
@@ -958,10 +809,15 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     );
 
     if (targetOrders.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No active orders found for this item.",
-      });
+      setProcessingKey(null);
+      // Ensure optimistic update is cleaned up if it was set
+      if (itemObj.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[itemObj.uniqueKey];
+          return n;
+        });
+      }
       return;
     }
 
@@ -970,69 +826,72 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
         `Are you sure you want to remove all ${itemObj.quantity} units of this item?`,
       )
     ) {
+      // Revert
+      if (itemObj.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[itemObj.uniqueKey];
+          return n;
+        });
+      }
+      setProcessingKey(null);
       return;
     }
 
     setIsProcessing(true);
-    if (itemObj.uniqueKey) setProcessingKey(itemObj.uniqueKey);
-    try {
-      let cancelledCount = 0;
 
-      for (const order of targetOrders) {
-        // Check if this order has OTHER items that we need to preserve
-        // OR if it has multiple lines of this item (unlikely with current backend, but possible)
+    // Prepare Parallel Operations
+    const cancelOps: Promise<any>[] = [];
+    const recreateOps: (() => Promise<any>)[] = [];
 
-        let itemsToKeep: any[] = [];
+    // Pre-calculate what needs to happen
+    targetOrders.forEach((order) => {
+      // We cancel the order
+      cancelOps.push(cancelOrder(order.id));
 
-        // Iterate over items in this order
-        order.items.forEach((oi: any) => {
-          // Check if THIS item 'oi' matches the variant we are deleting.
-          let isMatch = false;
-          if (oi.id === itemId) {
-            // Check details
-            const spiceMatch =
-              (itemObj.spiceLevel || null) === (oi.spiceLevel || null);
-            const uCusts = itemObj.customizations || [];
-            const oCusts = oi.customizations || [];
-            let custMatch = false;
-            if (uCusts.length === oCusts.length) {
-              custMatch = uCusts.every((c1: any) =>
-                oCusts.some(
-                  (c2: any) =>
-                    (c1.id && c2.option_id && c1.id === c2.option_id) ||
-                    (c1.id && c2.id && c1.id === c2.id) ||
-                    c1.name === c2.name,
-                ),
-              );
-            }
-            if (spiceMatch && custMatch) {
-              isMatch = true;
-            }
+      // Check if we need to preserve OTHER items
+      const itemsToKeep: any[] = [];
+      order.items.forEach((oi: any) => {
+        // Matching Logic (Invariant: remove matching items)
+        let isTarget = false;
+        if (oi.id === itemId) {
+          const spiceMatch =
+            (itemObj.spiceLevel || null) === (oi.spiceLevel || null);
+          const uCusts = itemObj.customizations || [];
+          const oCusts = oi.customizations || [];
+          let custMatch = false;
+          if (uCusts.length === oCusts.length) {
+            custMatch = uCusts.every((c1: any) =>
+              oCusts.some(
+                (c2: any) =>
+                  (c1.id && c2.option_id && c1.id === c2.option_id) ||
+                  (c1.id && c2.id && c1.id === c2.id) ||
+                  c1.name === c2.name,
+              ),
+            );
           }
+          if (spiceMatch && custMatch) isTarget = true;
+        }
 
-          if (!isMatch) {
-            // Keep it!
-            itemsToKeep.push({
-              itemId: parseInt(oi.id, 10) || oi.id,
-              quantity: oi.quantity,
-              specialInstructions: oi.specialInstructions,
-              spiceLevel: oi.spiceLevel,
-              customizations: oi.customizations,
-            });
-          }
-        });
+        if (!isTarget) {
+          itemsToKeep.push({
+            itemId: parseInt(oi.id, 10) || oi.id,
+            quantity: oi.quantity,
+            specialInstructions: (oi as any).specialInstructions,
+            spiceLevel: oi.spiceLevel,
+            customizations: oi.customizations,
+          });
+        }
+      });
 
-        // Cancel the original order
-        await cancelOrder(order.id);
-        cancelledCount++;
-
-        // If we have items to keep, Re-Order them immediately
-        if (itemsToKeep.length > 0 && activeTable) {
+      if (itemsToKeep.length > 0) {
+        // Push a creator factory
+        recreateOps.push(async () => {
           const payload = {
-            tableId: activeTable.id,
+            tableId: order.tableId || activeTable?.id,
             items: itemsToKeep,
-            customerName: localCustomerName || "",
-            customerPhone: localCustomerPhone || "",
+            customerName: order.userName || localCustomerName || "",
+            customerPhone: order.userPhone || localCustomerPhone || "",
             restaurantId: restaurantId ? parseInt(restaurantId, 10) : undefined,
             orderType: "addon",
           };
@@ -1047,12 +906,20 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
             headers,
             body: JSON.stringify(payload),
           });
-        }
+        });
       }
+    });
+
+    try {
+      // Execute Cancellations in Parallel
+      await Promise.all(cancelOps);
+
+      // Execute Re-creations in Parallel
+      await Promise.all(recreateOps.map((op) => op()));
 
       toast({
-        title: "Items Removed",
-        description: `Removed item from ${cancelledCount} orders.`,
+        title: "Items removed",
+        description: `Removed ${targetOrders.length} orders.`,
       });
 
       if (activeTable) {
@@ -1063,8 +930,18 @@ export function TableDetails({ tableId, slug, backUrl }: TableDetailsProps) {
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Failed to remove items" });
+      // Revert
+      if (itemObj.uniqueKey) {
+        setOptimisticUpdates((prev) => {
+          const n = { ...prev };
+          delete n[itemObj.uniqueKey];
+          return n;
+        });
+      }
+    } finally {
       setIsProcessing(false);
       setProcessingKey(null);
+      // Do not clear optimistic update.
     }
   };
 

@@ -1,7 +1,7 @@
 // src/app/dashboard/menu-editor/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -107,81 +107,75 @@ export default function MenuEditorPage() {
   }, [adminUser]);
 
   // Fetch menu items from backend
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchMenu() {
-      setLoading(true);
-      console.log("[Menu Editor] Fetching menu...");
-      try {
-        const query = adminUser?.restaurantId
-          ? `?restaurantId=${adminUser.restaurantId}`
-          : "";
-        const res = await fetch(`${API_BASE}/menu${query}`, {
-          headers: { ...authHeaders() },
-        });
-        console.log("[Menu Editor] Fetch menu status:", res.status);
-        if (!res.ok) {
-          const errText = await res.text();
-          console.error(errText);
-          throw new Error(`Failed to fetch menu (${res.status})`);
-        }
-        const data = await res.json();
-        const arr = Array.isArray(data)
-          ? data
-          : data?.items ?? data?.data ?? [];
-        const mapped: MenuItem[] = arr.map((o: any) => ({
-          id: String(o.item_id ?? o.id ?? o.itemId ?? o._id ?? ""),
-          name: o.name ?? "Unnamed",
-          description: o.description ?? "",
-          price: Number(o.price ?? 0),
-          category: o.category ?? "Uncategorized",
-          categoryId: o.category_id, // Map from backend
-          image: {
-            url: (() => {
-              const u = o.image_url ?? o.imageUrl ?? o.image?.url ?? o.image;
-              if (!u) return "https://placehold.co/300x300";
-              if (u.startsWith("http")) return u;
-              return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
-            })(),
-            hint: "",
-          },
-          imageId: o.imageId ?? "",
-          isAvailable: normalizeBool(o.is_available ?? o.isAvailable),
-          isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian),
-          dietaryType:
-            o.dietary_type ||
-            o.dietaryType ||
-            (normalizeBool(o.is_vegetarian ?? o.isVegetarian)
-              ? "veg"
-              : "non_veg"),
-          preparationTime: o.preparation_time ?? o.preparationTime ?? null,
-          hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels),
-          customizationNames:
-            o.customization_names ?? o.customizationNames ?? [],
-          customizationDetails:
-            o.customization_details ?? o.customizationDetails ?? [], // Map detailed info
-        }));
-        if (!cancelled) {
-          setLocalMenuItems(mapped);
-          console.log("[Menu Editor] Menu items loaded:", mapped.length);
-        }
-      } catch (err) {
-        console.error("Error fetching menu items:", err);
-        toast({
-          variant: "destructive",
-          title: "Failed to load menu",
-          description: (err as Error).message,
-        });
-        if (!cancelled) setLocalMenuItems([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+  const fetchMenu = useCallback(async () => {
+    setLoading(true);
+    console.log("[Menu Editor] Fetching menu...");
+    try {
+      const query = adminUser?.restaurantId
+        ? `?restaurantId=${adminUser.restaurantId}`
+        : "";
+      const res = await fetch(`${API_BASE}/menu${query}`, {
+        headers: { ...authHeaders() },
+      });
+      console.log("[Menu Editor] Fetch menu status:", res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(errText);
+        throw new Error(`Failed to fetch menu (${res.status})`);
       }
+      const data = await res.json();
+      const arr = Array.isArray(data)
+        ? data
+        : (data?.items ?? data?.data ?? []);
+      const mapped: MenuItem[] = arr.map((o: any) => ({
+        id: String(o.item_id ?? o.id ?? o.itemId ?? o._id ?? ""),
+        name: o.name ?? "Unnamed",
+        description: o.description ?? "",
+        price: Number(o.price ?? 0),
+        category: o.category ?? "Uncategorized",
+        categoryId: o.category_id, // Map from backend
+        image: {
+          url: (() => {
+            const u = o.image_url ?? o.imageUrl ?? o.image?.url ?? o.image;
+            if (!u) return "https://placehold.co/300x300";
+            if (u.startsWith("http")) return u;
+            return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
+          })(),
+          hint: "",
+        },
+        imageId: o.imageId ?? "",
+        isAvailable: normalizeBool(o.is_available ?? o.isAvailable),
+        isVegetarian: normalizeBool(o.is_vegetarian ?? o.isVegetarian),
+        dietaryType:
+          o.dietary_type ||
+          o.dietaryType ||
+          (normalizeBool(o.is_vegetarian ?? o.isVegetarian)
+            ? "veg"
+            : "non_veg"),
+        preparationTime: o.preparation_time ?? o.preparationTime ?? null,
+        hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels),
+        customizationNames: o.customization_names ?? o.customizationNames ?? [],
+        customizationDetails:
+          o.customization_details ?? o.customizationDetails ?? [], // Map detailed info
+      }));
+      setLocalMenuItems(mapped);
+      console.log("[Menu Editor] Menu items loaded:", mapped.length);
+    } catch (err) {
+      console.error("Error fetching menu items:", err);
+      toast({
+        variant: "destructive",
+        title: "Failed to load menu",
+        description: (err as Error).message,
+      });
+      setLocalMenuItems([]);
+    } finally {
+      setLoading(false);
     }
+  }, [adminUser, API_BASE, toast]);
+
+  useEffect(() => {
     fetchMenu();
-    return () => {
-      cancelled = true;
-    };
-  }, [API_BASE, toast]);
+  }, [fetchMenu]);
 
   // --- MODIFIED: Handle Settings Save (Tax & Discount) ---
   const handleSaveSettings = async () => {
@@ -231,12 +225,12 @@ export default function MenuEditorPage() {
       await updateSettings(
         newTaxPercent / 100,
         newDiscountPercent / 100,
-        trimmedUpi
+        trimmedUpi,
       );
       toast({
         title: "Settings Saved",
         description: `Tax: ${newTaxPercent.toFixed(
-          2
+          2,
         )}%, Discount: ${newDiscountPercent.toFixed(2)}%, UPI: ${trimmedUpi}`,
       });
     } catch (error) {
@@ -297,7 +291,7 @@ export default function MenuEditorPage() {
         throw new Error(txt || `Status ${res.status}`);
       }
       setLocalMenuItems((currentItems) =>
-        currentItems.filter((it) => it.id !== String(numericId))
+        currentItems.filter((it) => it.id !== String(numericId)),
       );
       toast({ title: "Item Deleted" });
     } catch (err) {
@@ -352,7 +346,7 @@ export default function MenuEditorPage() {
     // Send dietaryType (Backend handles sync with isVegetarian)
     form.append(
       "dietaryType",
-      editedItem.dietaryType || (editedItem.isVegetarian ? "veg" : "non_veg")
+      editedItem.dietaryType || (editedItem.isVegetarian ? "veg" : "non_veg"),
     );
     form.append("isVegetarian", String(editedItem.dietaryType === "veg"));
 
@@ -365,7 +359,7 @@ export default function MenuEditorPage() {
     if (isCreating && pendingCustomizations.length > 0) {
       form.append(
         "customizationAssignments",
-        JSON.stringify(pendingCustomizations)
+        JSON.stringify(pendingCustomizations),
       );
     }
 
@@ -398,7 +392,7 @@ export default function MenuEditorPage() {
             o.id ??
             o.itemId ??
             o._id ??
-            (isUpdating ? isEditing.id : `temp-${Date.now()}`)
+            (isUpdating ? isEditing.id : `temp-${Date.now()}`),
         ),
         name: o.name ?? "Unnamed",
         description: o.description ?? "",
@@ -428,6 +422,7 @@ export default function MenuEditorPage() {
         hasSpiceLevels: normalizeBool(o.has_spice_levels ?? o.hasSpiceLevels), // Added
       };
 
+      /*
       if (isUpdating) {
         setLocalMenuItems((current) =>
           current.map((it) => (it.id === savedItem.id ? savedItem : it))
@@ -435,6 +430,9 @@ export default function MenuEditorPage() {
       } else {
         setLocalMenuItems((current) => [...current, savedItem]);
       }
+      */
+      // Refresh menu to get full customization details (names, etc)
+      await fetchMenu();
 
       toast({ title: isUpdating ? "Item Updated" : "Item Created" });
       setIsEditing(null);
@@ -457,7 +455,7 @@ export default function MenuEditorPage() {
     const newValue = !currentValue;
 
     setLocalMenuItems((s) =>
-      s.map((it) => (it.id === itemId ? { ...it, [field]: newValue } : it))
+      s.map((it) => (it.id === itemId ? { ...it, [field]: newValue } : it)),
     );
 
     try {
@@ -470,7 +468,9 @@ export default function MenuEditorPage() {
       const o = json?.item ?? json?.data ?? json;
       const serverValue = normalizeBool(o[field] ?? o["is_available"]);
       setLocalMenuItems((s) =>
-        s.map((it) => (it.id === itemId ? { ...it, [field]: serverValue } : it))
+        s.map((it) =>
+          it.id === itemId ? { ...it, [field]: serverValue } : it,
+        ),
       );
       toast({ title: "Availability updated" });
     } catch (err) {
@@ -482,8 +482,8 @@ export default function MenuEditorPage() {
       });
       setLocalMenuItems((s) =>
         s.map((it) =>
-          it.id === itemId ? { ...it, [field]: currentValue } : it
-        )
+          it.id === itemId ? { ...it, [field]: currentValue } : it,
+        ),
       );
     }
   };

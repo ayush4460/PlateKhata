@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Trash2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -20,7 +19,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { CustomizationService } from "@/services/customization.service";
 import { CustomizationGroup } from "@/lib/types";
@@ -36,7 +34,7 @@ export function MenuItemCustomizationManager({
 }: MenuItemCustomizationManagerProps) {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [availableGroups, setAvailableGroups] = useState<CustomizationGroup[]>(
-    []
+    [],
   );
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,11 +47,7 @@ export function MenuItemCustomizationManager({
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchData();
-  }, [itemId, restaurantId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [groups, currentAssignments] = await Promise.all([
@@ -68,15 +62,28 @@ export function MenuItemCustomizationManager({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [itemId, restaurantId, toast]);
 
-  const handleOpenAssign = () => {
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Optimize rendering of assignments list using useMemo
+  // This ensures the list is only re-calculated when assignments change,
+  // preventing unnecessary sorts/filters on every render.
+  const sortedAssignments = useMemo(() => {
+    return [...assignments].sort((a, b) =>
+      (a.group_name || "").localeCompare(b.group_name || ""),
+    );
+  }, [assignments]);
+
+  const handleOpenAssign = useCallback(() => {
     setSelectedGroupId("");
     setOverrides([]);
     setIsAssignDialogOpen(true);
-  };
+  }, []);
 
-  const handleOpenEdit = (assignment: any) => {
+  const handleOpenEdit = useCallback((assignment: any) => {
     setSelectedGroupId(String(assignment.group_id));
     // Flatten current options to overrides format
     const currentOverrides = assignment.options.map((opt: any) => ({
@@ -86,34 +93,38 @@ export function MenuItemCustomizationManager({
     }));
     setOverrides(currentOverrides);
     setIsAssignDialogOpen(true);
-  };
+  }, []);
 
-  const handleGroupSelect = (val: string) => {
-    setSelectedGroupId(val);
-    const group = availableGroups.find((g) => String(g.id) === val);
-    if (group) {
-      // Init overrides from group options
-      setOverrides(
-        group.options.map((opt) => ({
-          optionId: opt.id,
-          priceModifier: 0,
-          isDefault: false,
-        }))
+  const handleGroupSelect = useCallback(
+    (val: string) => {
+      setSelectedGroupId(val);
+      const group = availableGroups.find((g) => String(g.id) === val);
+      if (group) {
+        // Init overrides from group options
+        setOverrides(
+          group.options.map((opt) => ({
+            optionId: opt.id,
+            priceModifier: 0,
+            isDefault: false,
+          })),
+        );
+      }
+    },
+    [availableGroups],
+  );
+
+  const handleOverrideChange = useCallback(
+    (optionId: number, field: string, value: any) => {
+      setOverrides((prev) =>
+        prev.map((o) =>
+          o.optionId === optionId ? { ...o, [field]: value } : o,
+        ),
       );
-    }
-  };
+    },
+    [],
+  );
 
-  const handleOverrideChange = (
-    optionId: number,
-    field: string,
-    value: any
-  ) => {
-    setOverrides((prev) =>
-      prev.map((o) => (o.optionId === optionId ? { ...o, [field]: value } : o))
-    );
-  };
-
-  const handleSaveAssignment = async () => {
+  const handleSaveAssignment = useCallback(async () => {
     if (!selectedGroupId) return;
     try {
       await CustomizationService.assignToItem({
@@ -123,33 +134,37 @@ export function MenuItemCustomizationManager({
       });
       toast({ title: "Customization assigned" });
       setIsAssignDialogOpen(false);
+      // Re-fetch to update the list
       fetchData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error saving assignment" });
     }
-  };
+  }, [itemId, selectedGroupId, overrides, fetchData, toast]);
 
-  const handleRemove = async (groupId: number) => {
-    if (!confirm("Remove this customization group from this item?")) return;
-    try {
-      await CustomizationService.removeForItem(itemId, groupId);
-      toast({ title: "Customization removed" });
-      fetchData();
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error removing assignment" });
-    }
-  };
+  const handleRemove = useCallback(
+    async (groupId: number) => {
+      if (!confirm("Remove this customization group from this item?")) return;
+      try {
+        await CustomizationService.removeForItem(itemId, groupId);
+        toast({ title: "Customization removed" });
+        fetchData();
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error removing assignment" });
+      }
+    },
+    [itemId, fetchData, toast],
+  );
 
-  // Helper to get group name safely
-  const getGroupName = (id: string) =>
-    availableGroups.find((g) => String(g.id) === id)?.name || "Unknown";
-
-  // Helper to get option name safely
-  const getOptionName = (optionId: number) => {
-    // Search in all groups (simplest) or current selected group
-    const group = availableGroups.find((g) => String(g.id) === selectedGroupId);
-    return group?.options.find((o) => o.id === optionId)?.name || "Option";
-  };
+  // Helper to get option name safely - Memoized? Not crucial but good practice if heavy lookup
+  const getOptionName = useCallback(
+    (optionId: number) => {
+      const group = availableGroups.find(
+        (g) => String(g.id) === selectedGroupId,
+      );
+      return group?.options.find((o) => o.id === optionId)?.name || "Option";
+    },
+    [availableGroups, selectedGroupId],
+  );
 
   return (
     <div className="space-y-4 border rounded-md p-4">
@@ -164,12 +179,12 @@ export function MenuItemCustomizationManager({
         <div>Loading...</div>
       ) : (
         <div className="space-y-2">
-          {assignments.length === 0 && (
+          {sortedAssignments.length === 0 && (
             <div className="text-sm text-muted-foreground">
               No customizations assigned.
             </div>
           )}
-          {assignments.map((assign) => (
+          {sortedAssignments.map((assign) => (
             <div
               key={assign.group_id}
               className="flex justify-between items-center bg-secondary/20 p-2 rounded"
@@ -251,7 +266,7 @@ export function MenuItemCustomizationManager({
                           handleOverrideChange(
                             opt.optionId,
                             "priceModifier",
-                            parseFloat(e.target.value)
+                            parseFloat(e.target.value),
                           )
                         }
                       />
