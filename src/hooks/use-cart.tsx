@@ -70,19 +70,6 @@ const getSocketUrl = () => {
   try {
     const url = new URL(apiUrl);
 
-    // PRODUCTION FIX: If the API URL points to the frontend domain (Vercel),
-    // we must redirect the socket connection to the actual backend (Render)
-    // because Vercel Serverless Functions do not support WebSocket hostings.
-    if (
-      url.hostname === "platekhata.in" ||
-      url.hostname === "www.platekhata.in"
-    ) {
-      console.log(
-        "[DEBUG SOCKET] Detected production frontend... switching socket to Render backend.",
-      );
-      return "https://platekhata-api.onrender.com";
-    }
-
     // Remove /api/v1 from the end of the pathname
     const newPath = url.pathname.replace(/\/api\/v1\/?$/, "");
     // Return origin + clean path (usually just origin if path was /api/v1)
@@ -907,6 +894,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const newSocket = io(SOCKET_URL, {
       transports: ["websocket"],
+      path: "/api/socket.io", // Match backend path and route via /api proxy
       auth: (cb) => {
         const token = localStorage.getItem("accessToken");
         cb(token ? { token } : {});
@@ -985,18 +973,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const handleConnectError = (err: any) => {
       console.error("[DEBUG SOCKET] Socket connection error:", err.message);
-      if (
-        err.message === "Authentication error" ||
-        err.message === "xhr poll error"
-      ) {
-        const token = localStorage.getItem("accessToken");
-        if (token) {
-          localStorage.removeItem("accessToken");
-          if (socket) {
-            socket.auth = {};
-            socket.connect();
-          }
-        }
+      // Warning only - do not log out user on socket failure
+      if (err.message === "Authentication error") {
+        console.warn("[DEBUG SOCKET] Socket authentication failed.");
       }
     };
 
