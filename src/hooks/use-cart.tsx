@@ -64,9 +64,23 @@ import { write } from "fs";
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
 ).replace(/\/$/, "");
-const SOCKET_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
-).replace("/api/v1", "");
+const getSocketUrl = () => {
+  const apiUrl =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+  try {
+    const url = new URL(apiUrl);
+    // Remove /api/v1 from the end of the pathname
+    const newPath = url.pathname.replace(/\/api\/v1\/?$/, "");
+    // Return origin + clean path (usually just origin if path was /api/v1)
+    // If apiUrl was "https://domain.com/api/v1", path becomes empty -> "https://domain.com"
+    // If apiUrl was "https://domain.com/sub/api/v1", path becomes "/sub" -> "https://domain.com/sub"
+    return `${url.protocol}//${url.host}${newPath}`.replace(/\/$/, "");
+  } catch (e) {
+    return apiUrl.replace("/api/v1", "");
+  }
+};
+
+const SOCKET_URL = getSocketUrl();
 
 type KitchenStatus = "new" | "in-progress" | "completed";
 
@@ -878,11 +892,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (socket || typeof window === "undefined") return;
 
     const newSocket = io(SOCKET_URL, {
+      transports: ["websocket"],
       auth: (cb) => {
         const token = localStorage.getItem("accessToken");
         cb(token ? { token } : {});
       },
     });
+    console.log("[DEBUG SOCKET] Connecting to:", SOCKET_URL, newSocket);
 
     setSocket(newSocket);
   }, [socket]);
