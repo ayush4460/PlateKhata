@@ -133,8 +133,8 @@ function LoginForm({ role, onBack }: LoginFormProps) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex w-full mb-6 justify-center">
+    <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 px-4 md:px-0">
+      <div className="flex w-full mb-4 md:mb-6 justify-center">
         <Button
           variant="ghost"
           onClick={(e) => {
@@ -149,40 +149,40 @@ function LoginForm({ role, onBack }: LoginFormProps) {
       </div>
 
       <Card className="border-0 shadow-2xl overflow-hidden backdrop-blur-xl transition-all duration-500 hover:shadow-3xl bg-white/90 text-neutral-900 ring-1 ring-black/5">
-        <CardHeader className="space-y-1 text-center pb-8 pt-10 ">
-          <div className="flex justify-center mb-6">
+        <CardHeader className="space-y-1 text-center pb-6 pt-8 md:pb-8 md:pt-10">
+          <div className="flex justify-center mb-4 md:mb-6">
             <div
               className={cn(
-                "p-4 rounded-full transition-transform duration-500 hover:rotate-12 hover:scale-110",
+                "p-3 md:p-4 rounded-full transition-transform duration-500 hover:rotate-12 hover:scale-110",
                 "bg-orange-100 text-orange-600 ring-2 ring-orange-200 shadow-[0_0_20px_rgba(234,88,12,0.15)]",
               )}
             >
               {role === "admin" ? (
-                <UtensilsCrossed className="h-10 w-10" />
+                <UtensilsCrossed className="h-8 w-8 md:h-10 md:w-10" />
               ) : role === "supervisor" ? (
-                <UserCog className="h-10 w-10" />
+                <UserCog className="h-8 w-8 md:h-10 md:w-10" />
               ) : (
-                <ChefHat className="h-10 w-10" />
+                <ChefHat className="h-8 w-8 md:h-10 md:w-10" />
               )}
             </div>
           </div>
-          <CardTitle className="text-3xl font-extrabold tracking-tight capitalize">
+          <CardTitle className="text-xl md:text-3xl font-extrabold tracking-tight capitalize">
             {role === "admin"
               ? "Admin Portal"
               : role === "supervisor"
                 ? "Supervisor Panel"
                 : "Kitchen Station"}
           </CardTitle>
-          <CardDescription className="text-base font-medium text-neutral-500">
-            Enter your credentials to access the {role} dashboard.
+          <CardDescription className="text-xs md:text-base font-medium text-neutral-500 max-w-[90%] mx-auto">
+            Enter your credentials to access the dashboard.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-6">
+        <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
+          <form onSubmit={handleLogin} className="space-y-4 md:space-y-6">
             <div className="space-y-2 group">
               <Label
                 htmlFor="email"
-                className="block text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
+                className="block text-xs md:text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
               >
                 Email
               </Label>
@@ -199,13 +199,13 @@ function LoginForm({ role, onBack }: LoginFormProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50 hover:border-primary/50 hover:shadow-md bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white"
+                className="h-11 md:h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50 hover:border-primary/50 hover:shadow-md bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white"
               />
             </div>
             <div className="space-y-2 group">
               <Label
                 htmlFor="password"
-                className="block text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
+                className="block text-xs md:text-sm font-semibold transition-colors duration-300 group-hover:text-primary text-neutral-700"
               >
                 Password
               </Label>
@@ -216,16 +216,16 @@ function LoginForm({ role, onBack }: LoginFormProps) {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50 hover:border-primary/50 hover:shadow-md bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white"
+                className="h-11 md:h-12 border transition-all duration-300 focus:scale-[1.01] focus:ring-2 focus:ring-primary/50 hover:border-primary/50 hover:shadow-md bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:bg-white"
               />
             </div>
             <Button
-              className="w-full h-12 text-lg font-bold mt-6 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white border-0"
+              className="w-full h-10 md:h-12 text-sm md:text-lg font-bold mt-4 md:mt-6 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white border-0"
               type="submit"
               disabled={isSubmitting}
             >
               {isSubmitting ? "Logging in..." : "Login"}{" "}
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
             </Button>
           </form>
         </CardContent>
@@ -240,38 +240,46 @@ export default function LoginPage() {
     "admin" | "kitchen" | "supervisor" | null
   >(null);
 
+  // Helper to determine if we should show a panel (or if it's the active one)
+  // On mobile: If one is active, hide others to give full screen to active.
+  // On desktop: Layout handles flex grow/shrink.
+  const isAnyActive = !!activePanel;
+
   return (
     <div className="flex h-[100dvh] w-full bg-white overflow-hidden relative">
       {/* --- Marketing Footer --- */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-        <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-sm hover:shadow-md ring-1 ring-black/5 group cursor-pointer transition-all duration-300 hover:scale-105 hover:bg-white/80">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 pointer-events-none w-full flex justify-center">
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-sm ring-1 ring-black/5 pointer-events-auto transition-transform hover:scale-105 active:scale-95">
           <div className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
-          <span className="font-bold tracking-tight text-neutral-800 text-sm">
+          <span className="font-bold tracking-tight text-neutral-800 text-[10px] md:text-xs">
             PlateKhata
           </span>
           <span className="w-px h-3 bg-neutral-900/10 mx-1" />
-          <span className="text-[10px] font-semibold text-neutral-500 tracking-wide uppercase">
-            Powered by Axiom HiTech
+          <span className="text-[9px] md:text-[10px] font-semibold text-neutral-500 tracking-wide uppercase">
+            Powered by Axiom
           </span>
         </div>
       </div>
 
       {/* Container */}
       <div className="flex w-full h-full flex-col lg:flex-row transition-all duration-700 ease-in-out">
-        {/* === ADMIN PANEL (LEFT) === */}
+        {/* === ADMIN PANEL (LEFT / TOP) === */}
         <div
           onClick={() => setActivePanel("admin")}
           className={cn(
-            "relative flex flex-col items-center justify-center transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10",
+            "relative flex items-center justify-center transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10",
             "p-4 md:p-8 lg:p-12",
+            // Mobile: If admin is active, it takes full height. If another is active, we HIDE this one completely.
+            // Desktop: Flex grow logic.
             activePanel === "admin"
-              ? "overflow-y-auto overflow-x-hidden"
-              : "overflow-hidden",
-            activePanel === "admin"
-              ? "flex-[10] cursor-default"
-              : activePanel
-                ? "flex-[1] opacity-60 hover:opacity-80"
-                : "flex-[1] hover:flex-[1.2]",
+              ? "flex-[10] cursor-default overflow-y-auto overflow-x-hidden pb-24"
+              : isAnyActive
+                ? "hidden lg:flex lg:flex-[1] lg:opacity-60 lg:hover:opacity-80 lg:overflow-hidden" // Hidden on mobile if not active
+                : "flex-[1] opacity-100 hover:flex-[1.2]",
+            // On mobile, if not active but something else is, display is none (handled above via hidden), keeping logic clean
+            activePanel && activePanel !== "admin"
+              ? "border-0 lg:border-r-4"
+              : "h-auto",
           )}
         >
           <div className="absolute inset-0 bg-white z-[-1]"></div>
@@ -296,51 +304,54 @@ export default function LoginPage() {
             ) : (
               <div
                 className={cn(
-                  "text-center space-y-4 md:space-y-6 transition-all duration-500",
+                  "text-center space-y-2 md:space-y-6 transition-all duration-500 flex flex-row lg:flex-col items-center gap-4 lg:gap-0",
                   activePanel &&
                     "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap",
                 )}
               >
-                <div className="inline-flex p-3 md:p-4 rounded-full bg-neutral-100 ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-neutral-200">
-                  <UtensilsCrossed className="h-8 w-8 md:h-12 md:w-12 text-black" />
+                <div className="inline-flex p-2 md:p-4 rounded-full bg-neutral-100 ring-2 md:ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-neutral-200 shrink-0">
+                  <UtensilsCrossed className="h-6 w-6 md:h-12 md:w-12 text-black" />
                 </div>
                 {!activePanel && (
-                  <>
+                  <div className="text-left lg:text-center">
                     <div>
-                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
+                      <h2 className="text-lg md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
                         Admin
                       </h2>
-                      <p className="text-black/80 mt-2 font-medium tracking-wide text-sm">
+                      <p className="text-black/80 lg:mt-2 font-medium tracking-wide text-[10px] md:text-sm">
                         Restaurant Manager
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="mt-6 rounded-full px-6 border-black text-white bg-black hover:bg-neutral-800"
-                    >
-                      Login as Admin <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </>
+                  </div>
+                )}
+                {/* Hide button on mobile preview, show only on desktop or large screens to save space */}
+                {!activePanel && (
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex mt-0 lg:mt-6 rounded-full px-4 md:px-6 border-black text-white bg-black hover:bg-neutral-800 ml-auto lg:ml-0"
+                  >
+                    Login <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* === SUPERVISOR PANEL (CENTER) === */}
+        {/* === SUPERVISOR PANEL (CENTER / MIDDLE) === */}
         <div
           onClick={() => setActivePanel("supervisor")}
           className={cn(
-            "relative flex flex-col items-center justify-center transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10 bg-blue-50/50",
+            "relative flex items-center justify-center transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group border-b-4 lg:border-b-0 lg:border-r-4 border-black z-10 bg-blue-50/50",
             "p-4 md:p-8 lg:p-12",
             activePanel === "supervisor"
-              ? "overflow-y-auto overflow-x-hidden"
-              : "overflow-hidden",
-            activePanel === "supervisor"
-              ? "flex-[10] cursor-default"
-              : activePanel
-                ? "flex-[1] opacity-60 hover:opacity-80"
-                : "flex-[1] hover:flex-[1.2]",
+              ? "flex-[10] cursor-default overflow-y-auto overflow-x-hidden pb-24"
+              : isAnyActive
+                ? "hidden lg:flex lg:flex-[1] lg:opacity-60 lg:hover:opacity-80 lg:overflow-hidden" // Hidden on mobile if not active
+                : "flex-[1] opacity-100 hover:flex-[1.2]",
+            activePanel && activePanel !== "supervisor"
+              ? "border-0 lg:border-r-4"
+              : "h-auto",
           )}
         >
           <div className="absolute inset-0 bg-blue-50/80 z-[-1]"></div>
@@ -371,52 +382,51 @@ export default function LoginPage() {
             ) : (
               <div
                 className={cn(
-                  "text-center space-y-4 md:space-y-6 transition-all duration-500",
+                  "text-center space-y-2 md:space-y-6 transition-all duration-500 flex flex-row lg:flex-col items-center gap-4 lg:gap-0",
                   activePanel &&
                     "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap",
                 )}
               >
-                <div className="inline-flex p-3 md:p-4 rounded-full bg-white ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-blue-200">
-                  <UserCog className="h-8 w-8 md:h-12 md:w-12 text-black" />
+                <div className="inline-flex p-2 md:p-4 rounded-full bg-white ring-2 md:ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-blue-200 shrink-0">
+                  <UserCog className="h-6 w-6 md:h-12 md:w-12 text-black" />
                 </div>
                 {!activePanel && (
-                  <>
+                  <div className="text-left lg:text-center">
                     <div>
-                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
+                      <h2 className="text-lg md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
                         Supervisor
                       </h2>
-                      <p className="text-black/80 mt-2 font-medium tracking-wide text-sm">
+                      <p className="text-black/80 lg:mt-2 font-medium tracking-wide text-[10px] md:text-sm">
                         Floor Manager
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="mt-6 rounded-full px-6 border-black text-white bg-black hover:bg-neutral-800"
-                    >
-                      Login as Supervisor{" "}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </>
+                  </div>
+                )}
+                {!activePanel && (
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex mt-0 lg:mt-6 rounded-full px-4 md:px-6 border-black text-white bg-black hover:bg-neutral-800 ml-auto lg:ml-0"
+                  >
+                    Login <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* === KITCHEN PANEL (RIGHT) === */}
+        {/* === KITCHEN PANEL (RIGHT / BOTTOM) === */}
         <div
           onClick={() => setActivePanel("kitchen")}
           className={cn(
-            "relative flex flex-col items-center justify-center transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group bg-orange-50/50",
+            "relative flex items-center justify-center transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group bg-orange-50/50",
             "p-4 md:p-8 lg:p-12",
             activePanel === "kitchen"
-              ? "overflow-y-auto overflow-x-hidden"
-              : "overflow-hidden",
-            activePanel === "kitchen"
-              ? "flex-[10] cursor-default"
-              : activePanel
-                ? "flex-[1] opacity-60 hover:opacity-80"
-                : "flex-[1] hover:flex-[1.2]",
+              ? "flex-[10] cursor-default overflow-y-auto overflow-x-hidden pb-24"
+              : isAnyActive
+                ? "hidden lg:flex lg:flex-[1] lg:opacity-60 lg:hover:opacity-80 lg:overflow-hidden" // Hidden on mobile if not active
+                : "flex-[1] opacity-100 hover:flex-[1.2]",
+            activePanel && activePanel !== "kitchen" ? "border-0" : "h-auto",
           )}
         >
           <div className="absolute inset-0 bg-orange-50/80 z-[-1]"></div>
@@ -441,31 +451,33 @@ export default function LoginPage() {
             ) : (
               <div
                 className={cn(
-                  "text-center space-y-4 md:space-y-6 transition-all duration-500",
+                  "text-center space-y-2 md:space-y-6 transition-all duration-500 flex flex-row lg:flex-col items-center gap-4 lg:gap-0",
                   activePanel &&
                     "opacity-0 lg:opacity-100 lg:-rotate-90 lg:whitespace-nowrap",
                 )}
               >
-                <div className="inline-flex p-3 md:p-4 rounded-full bg-white ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-orange-200">
-                  <ChefHat className="h-8 w-8 md:h-12 md:w-12 text-black" />
+                <div className="inline-flex p-2 md:p-4 rounded-full bg-white ring-2 md:ring-4 ring-black group-hover:scale-110 transition-transform duration-500 shadow-xl shadow-orange-200 shrink-0">
+                  <ChefHat className="h-6 w-6 md:h-12 md:w-12 text-black" />
                 </div>
                 {!activePanel && (
-                  <>
+                  <div className="text-left lg:text-center">
                     <div>
-                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
+                      <h2 className="text-lg md:text-3xl lg:text-4xl font-bold text-black tracking-tighter">
                         Kitchen
                       </h2>
-                      <p className="text-black/80 mt-2 font-medium tracking-wide text-sm">
+                      <p className="text-black/80 lg:mt-2 font-medium tracking-wide text-[10px] md:text-sm">
                         View & Prepare
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="mt-6 rounded-full px-6 border-black text-white bg-black hover:bg-neutral-800"
-                    >
-                      Login as Kitchen <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </>
+                  </div>
+                )}
+                {!activePanel && (
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex mt-0 lg:mt-6 rounded-full px-4 md:px-6 border-black text-white bg-black hover:bg-neutral-800 ml-auto lg:ml-0"
+                  >
+                    Login <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
                 )}
               </div>
             )}
